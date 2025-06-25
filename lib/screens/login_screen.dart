@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main_layout.dart';
 import 'signup_screen.dart';
+import '../backend/login_logic.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final _loginLogic = LoginLogic();
 
   @override
   void dispose() {
@@ -30,71 +31,20 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final AuthResponse response = await _supabase.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      if (response.session != null && response.user != null) {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainLayout()),
-          );
-        }
-      } else {
-        throw Exception('Login failed: No session or user returned');
-      }
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = _getFriendlyError(e.message));
-    } catch (e) {
-      setState(() => _errorMessage = 'An error occurred during login');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  String _getFriendlyError(String error) {
-    if (error.contains('Invalid login credentials')) {
-      return 'Invalid email or password';
-    } else if (error.contains('Email not confirmed')) {
-      return 'Please verify your email first';
-    } else if (error.contains('Too many requests')) {
-      return 'Too many attempts. Please try again later';
-    }
-    return error;
+    await _loginLogic.handleSignIn(
+      email: _emailController.text,
+      password: _passwordController.text,
+      context: context,
+      setLoading: (value) => setState(() => _isLoading = value),
+      setError: (value) => setState(() => _errorMessage = value),
+    );
   }
 
   Future<void> _resetPassword() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
-      );
-      return;
-    }
-
-    try {
-      await _supabase.auth.resetPasswordForEmail(email);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Password reset link sent to $email')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sending reset link: ${e.toString()}')),
-        );
-      }
-    }
+    await _loginLogic.handleResetPassword(
+      email: _emailController.text.trim(),
+      context: context,
+    );
   }
 
   @override
