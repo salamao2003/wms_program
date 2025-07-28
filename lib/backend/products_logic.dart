@@ -55,7 +55,6 @@ class ProductsLogic {
   Future<Map<String, dynamic>> addCategory({
     required String name,
     int? parentId,
-    int? warehouseId,
     String? description,
   }) async {
     try {
@@ -76,7 +75,6 @@ class ProductsLogic {
             'name': name,
             'parent_id': parentId,
             'level': level,
-            'warehouse_id': warehouseId,
             'description': description,
           })
           .select()
@@ -130,25 +128,9 @@ class ProductsLogic {
     }
   }
 
-  // ======================= WAREHOUSES OPERATIONS =======================
-
-  /// جلب جميع المخازن
-  Future<List<Map<String, dynamic>>> getWarehouses() async {
-    try {
-      final response = await _supabaseService.client
-          .from('warehouses')
-          .select('*')
-          .order('name');
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      throw Exception('Failed to fetch warehouses: $e');
-    }
-  }
-
   // ======================= PRODUCTS OPERATIONS =======================
 
-  /// جلب جميع المنتجات مع تفاصيل الفئات والمخازن
+  /// جلب جميع المنتجات مع تفاصيل الفئات
   Future<List<Map<String, dynamic>>> getProducts() async {
     try {
       final response = await _supabaseService.client
@@ -156,10 +138,6 @@ class ProductsLogic {
           .select('''
             *,
             category:category_id (
-              id,
-              name
-            ),
-            warehouse:warehouse_id (
               id,
               name
             )
@@ -180,10 +158,6 @@ class ProductsLogic {
           .select('''
             *,
             category:category_id (
-              id,
-              name
-            ),
-            warehouse:warehouse_id (
               id,
               name
             )
@@ -215,14 +189,11 @@ class ProductsLogic {
   Future<Map<String, dynamic>> addProduct({
     required String id,
     required String name,
-    required String unit,
     int? categoryId,
-    int? warehouseId,
     String? supplier,
     String? supplierTaxNumber,
     String? electronicInvoiceNumber,
     String? poNumber,
-    int quantity = 0,
   }) async {
     try {
       // التحقق من عدم تكرار الـ ID
@@ -237,35 +208,25 @@ class ProductsLogic {
           .insert({
             'id': id,
             'name': name,
-            'unit': unit,
             'category_id': categoryId,
-            'warehouse_id': warehouseId,
             'supplier': supplier,
             'supplier_tax_number': supplierTaxNumber,
             'electronic_invoice_number': electronicInvoiceNumber,
             'po_number': poNumber,
-            'quantity': quantity,
             'status': 'active',
             'created_at': DateTime.now().toIso8601String(),
           })
           .select()
           .single();
 
-      // إضافة المخزون الأولي إذا كان هناك مخزن محدد وكمية أولية
-      if (warehouseId != null && quantity > 0) {
-        await _supabaseService.client
-            .from('warehouse_stock')
-            .insert({
-              'product_id': id,
-              'warehouse_id': warehouseId,
-              'quantity': quantity,
-              'last_updated': DateTime.now().toIso8601String(),
-            });
-      }
-
       return productResponse;
     } catch (e) {
-      throw Exception('Failed to add product: $e');
+      // فحص رسالة الخطأ
+      final msg = e.toString();
+      if (msg.contains('unique_electronic_invoice_number') || msg.contains('already exists')) {
+        throw Exception('رقم الفاتورة الالكترونية موجود مسبقا');
+      }
+      throw Exception('Failed to add product: $msg');
     }
   }
 
@@ -273,33 +234,32 @@ class ProductsLogic {
   Future<void> updateProduct({
     required String id,
     required String name,
-    required String unit,
     int? categoryId,
-    int? warehouseId,
     String? supplier,
     String? supplierTaxNumber,
     String? electronicInvoiceNumber,
     String? poNumber,
-    int quantity = 0,
   }) async {
     try {
       await _supabaseService.client
           .from('products')
           .update({
             'name': name,
-            'unit': unit,
             'category_id': categoryId,
-            'warehouse_id': warehouseId,
             'supplier': supplier,
             'supplier_tax_number': supplierTaxNumber,
             'electronic_invoice_number': electronicInvoiceNumber,
             'po_number': poNumber,
-            'quantity': quantity,
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', id);
     } catch (e) {
-      throw Exception('Failed to update product: $e');
+      // فحص رسالة الخطأ
+      final msg = e.toString();
+      if (msg.contains('unique_electronic_invoice_number') || msg.contains('already exists')) {
+        throw Exception('رقم الفاتورة الالكترونية موجود مسبقا');
+      }
+      throw Exception('Failed to update product: $msg');
     }
   }
 
@@ -351,7 +311,6 @@ class ProductsLogic {
 Future<List<Map<String, dynamic>>> searchProducts({
   String? searchTerm,
   int? categoryId,
-  int? warehouseId,
   String? status,
 }) async {
   try {
@@ -360,10 +319,6 @@ Future<List<Map<String, dynamic>>> searchProducts({
         .select('''
           *,
           category:category_id (
-            id,
-            name
-          ),
-          warehouse:warehouse_id (
             id,
             name
           )
@@ -393,11 +348,6 @@ Future<List<Map<String, dynamic>>> searchProducts({
       query = query.eq('category_id', categoryId);
     }
 
-    // فلترة بالمخزن
-    if (warehouseId != null) {
-      query = query.eq('warehouse_id', warehouseId);
-    }
-
     // فلترة بالحالة
     if (status != null) {
       query = query.eq('status', status);
@@ -415,7 +365,6 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
   String? searchTerm,
   required String searchField, // 'id', 'name', 'invoice', 'tax', 'po', 'supplier'
   int? categoryId,
-  int? warehouseId,
   String? status,
 }) async {
   try {
@@ -426,10 +375,6 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
           category:category_id (
             id,
             name
-          ),
-          warehouse:warehouse_id (
-            id,
-            name
           )
         ''');
 
@@ -437,12 +382,7 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
     if (searchTerm != null && searchTerm.isNotEmpty) {
       switch (searchField) {
         case 'id':
-          final idValue = int.tryParse(searchTerm ?? '');
-          if (idValue != null) {
-            query = query.eq('id', idValue);
-          } else {
-            query = query.eq('id', -1);
-          }
+          query = query.ilike('id', '%$searchTerm%');
           break;
         case 'name':
           query = query.ilike('name', '%$searchTerm%');
@@ -475,9 +415,6 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
     // باقي الفلاتر
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);
-    }
-    if (warehouseId != null) {
-      query = query.eq('warehouse_id', warehouseId);
     }
     if (status != null) {
       query = query.eq('status', status);
@@ -512,9 +449,9 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
           .count(CountOption.exact);
 
       return {
-        'total_products': totalProducts.count ?? 0,
-        'active_products': activeProducts.count ?? 0,
-        'total_categories': categoriesCount.count ?? 0,
+        'total_products': totalProducts.count,
+        'active_products': activeProducts.count,
+        'total_categories': categoriesCount.count,
       };
     } catch (e) {
       return {
@@ -549,7 +486,6 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
   String? validateProductData({
     required String id,
     required String name,
-    required String unit,
   }) {
     if (id.trim().isEmpty) {
       return 'Product ID is required';
@@ -565,10 +501,6 @@ Future<List<Map<String, dynamic>>> searchProductsByField({
 
     if (name.trim().length < 2) {
       return 'Product name must be at least 2 characters';
-    }
-
-    if (unit.trim().isEmpty) {
-      return 'Unit is required';
     }
 
     return null; // البيانات صحيحة

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../backend/products_logic.dart';
+import '../l10n/app_localizations.dart';
+import '../services/language_service.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -12,10 +15,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final ProductsLogic _productsLogic = ProductsLogic();
   final TextEditingController _searchController = TextEditingController();
   
-  final List<String> _units = ['متر', 'كيلو', 'لتر', 'وحدة'];
-  
   List<Map<String, dynamic>> _products = [];
-  List<Map<String, dynamic>> _warehouses = [];
   Map<String, int> _stats = {};
   
   bool _isLoading = true;
@@ -24,17 +24,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
   // للفلترة
   String _searchTerm = '';
   int? _selectedCategoryFilter;
-  int? _selectedWarehouseFilter;
-  String _selectedSearchField = 'all'; // all, id, name, invoice, tax, po, supplier
+ 
+  String _selectedSearchField = 'id'; // أو أي قيمة أخرى غير 'all'
 
 final List<Map<String, String>> _searchFields = [
-    {'value': 'all', 'label': 'البحث في الكل', 'icon': 'search'},
-    {'value': 'id', 'label': 'رقم المنتج (ID)', 'icon': 'tag'},
-    {'value': 'name', 'label': 'اسم المنتج', 'icon': 'inventory'},
-    {'value': 'invoice', 'label': 'رقم الفاتورة', 'icon': 'receipt'},
-    {'value': 'tax', 'label': 'الرقم الضريبي', 'icon': 'account_balance'},
-    {'value': 'po', 'label': 'رقم PO', 'icon': 'assignment'},
-    {'value': 'supplier', 'label': 'المورد', 'icon': 'business'},
+    {'value': 'id', 'label_ar': 'رقم المنتج (ID)', 'label_en': 'Product ID', 'icon': 'tag'},
+    {'value': 'name', 'label_ar': 'اسم المنتج', 'label_en': 'Product Name', 'icon': 'inventory'},
+    {'value': 'invoice', 'label_ar': 'رقم الفاتورة', 'label_en': 'Invoice Number', 'icon': 'receipt'},
+    {'value': 'tax', 'label_ar': 'الرقم الضريبي', 'label_en': 'Tax Number', 'icon': 'account_balance'},
+    {'value': 'po', 'label_ar': 'رقم PO', 'label_en': 'PO Number', 'icon': 'assignment'},
+    {'value': 'supplier', 'label_ar': 'المورد', 'label_en': 'Supplier', 'icon': 'business'},
   ];
 
   @override
@@ -52,14 +51,12 @@ final List<Map<String, String>> _searchFields = [
     try {
       final results = await Future.wait([
         _productsLogic.getProducts(),
-        _productsLogic.getWarehouses(),
         _productsLogic.getProductsStats(),
       ]);
 
       setState(() {
         _products = results[0] as List<Map<String, dynamic>>;
-        _warehouses = results[1] as List<Map<String, dynamic>>;
-        _stats = results[2] as Map<String, int>;
+        _stats = results[1] as Map<String, int>;
         _isLoading = false;
       });
     } catch (e) {
@@ -79,7 +76,7 @@ final List<Map<String, String>> _searchFields = [
         results = await _productsLogic.searchProducts(
           searchTerm: _searchTerm.isNotEmpty ? _searchTerm : null,
           categoryId: _selectedCategoryFilter,
-          warehouseId: _selectedWarehouseFilter,
+         
           status: 'active',
         );
       } else {
@@ -88,7 +85,7 @@ final List<Map<String, String>> _searchFields = [
           searchTerm: _searchTerm.isNotEmpty ? _searchTerm : null,
           searchField: _selectedSearchField,
           categoryId: _selectedCategoryFilter,
-          warehouseId: _selectedWarehouseFilter,
+          
           status: 'active',
         );
       }
@@ -103,13 +100,13 @@ final List<Map<String, String>> _searchFields = [
     }
   }
 
-  
-
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Products Management'),
+        title: Text(localizations?.productsTitle ?? 'Products Management'),
         automaticallyImplyLeading: false,
         actions: [
           // إحصائيات سريعة
@@ -126,7 +123,7 @@ final List<Map<String, String>> _searchFields = [
                 children: [
                   const Icon(Icons.inventory_2, size: 16),
                   const SizedBox(width: 4),
-                  Text('${_stats['total_products']} منتج'),
+                  Text('${_stats['total_products']} ${localizations?.products ?? 'منتج'}'),
                 ],
               ),
             ),
@@ -134,7 +131,7 @@ final List<Map<String, String>> _searchFields = [
           ElevatedButton.icon(
             onPressed: () => _showProductDialog(),
             icon: const Icon(Icons.add),
-            label: const Text('Add Product'),
+            label: Text(localizations?.addProduct ?? 'Add Product'),
           ),
           const SizedBox(width: 16),
         ],
@@ -195,6 +192,8 @@ final List<Map<String, String>> _searchFields = [
 
    // شريط البحث والفلاتر المحدث
   Widget _buildSearchAndFilters() {
+    final localizations = AppLocalizations.of(context);
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -209,19 +208,22 @@ final List<Map<String, String>> _searchFields = [
                   child: DropdownButtonFormField<String>(
                     value: _selectedSearchField,
                     decoration: InputDecoration(
-                      labelText: 'نوع البحث',
+                      labelText: localizations?.searchText ?? 'نوع البحث',
                       border: const OutlineInputBorder(),
                       prefixIcon: Icon(_getSearchFieldIcon(_selectedSearchField)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: _searchFields.map((field) {
+                      final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+                      final label = isArabic ? field['label_ar']! : field['label_en']!;
+                      
                       return DropdownMenuItem<String>(
                         value: field['value'],
                         child: Row(
                           children: [
                             Icon(_getSearchFieldIcon(field['value']!), size: 18),
                             const SizedBox(width: 8),
-                            Text(field['label']!, style: const TextStyle(fontSize: 14)),
+                            Text(label, style: const TextStyle(fontSize: 14)),
                           ],
                         ),
                       );
@@ -244,7 +246,7 @@ final List<Map<String, String>> _searchFields = [
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: _getSearchHint(_selectedSearchField),
+                      hintText: _getSearchHint(_selectedSearchField, localizations),
                       prefixIcon: const Icon(Icons.search),
                       border: const OutlineInputBorder(),
                       suffixIcon: _searchTerm.isNotEmpty
@@ -280,35 +282,7 @@ final List<Map<String, String>> _searchFields = [
             Row(
               children: [
                 // فلتر المخزن
-                Expanded(
-                  child: DropdownButtonFormField<int?>(
-                    value: _selectedWarehouseFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'فلترة بالمخزن',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.warehouse),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: [
-                      const DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('جميع المخازن'),
-                      ),
-                      ..._warehouses.map((warehouse) {
-                        return DropdownMenuItem<int?>(
-                          value: warehouse['id'],
-                          child: Text(warehouse['name']),
-                        );
-                      }),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedWarehouseFilter = value;
-                      });
-                      _searchProducts();
-                    },
-                  ),
-                ),
+                
                 const SizedBox(width: 12),
                 
                 // إحصائيات البحث
@@ -326,7 +300,7 @@ final List<Map<String, String>> _searchFields = [
                         const Icon(Icons.inventory_2, size: 18, color: Colors.blue),
                         const SizedBox(width: 6),
                         Text(
-                          '${_products.length} منتج',
+                          '${_products.length} ${localizations?.products ?? 'منتج'}',
                           style: const TextStyle(
                             color: Colors.blue,
                             fontWeight: FontWeight.bold,
@@ -334,28 +308,8 @@ final List<Map<String, String>> _searchFields = [
                         ),
                       ],
                     ),
-                  ),
-                
-                const SizedBox(width: 12),
-                
-                // زر مسح الفلاتر
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _searchController.clear();
-                      _searchTerm = '';
-                      _selectedSearchField = 'all';
-                      _selectedCategoryFilter = null;
-                      _selectedWarehouseFilter = null;
-                    });
-                    _loadInitialData();
-                  },
-                  icon: const Icon(Icons.clear_all),
-                  label: const Text('مسح الكل'),
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                  ),
-                ),
+                  ),               
+                const SizedBox(width: 12),               
               ],
             ),
           ],
@@ -379,16 +333,16 @@ final List<Map<String, String>> _searchFields = [
   }
 
   // الحصول على نص المساعدة للبحث
-  String _getSearchHint(String field) {
+  String _getSearchHint(String field, AppLocalizations? localizations) {
     switch (field) {
-      case 'all': return 'ابحث في جميع الحقول...';
-      case 'id': return 'ابحث برقم المنتج (مثل: 123)...';
-      case 'name': return 'ابحث باسم المنتج...';
-      case 'invoice': return 'ابحث برقم الفاتورة...';
-      case 'tax': return 'ابحث بالرقم الضريبي...';
-      case 'po': return 'ابحث برقم PO...';
-      case 'supplier': return 'ابحث باسم المورد...';
-      default: return 'ابحث...';
+      case 'all': return localizations?.searchAll ?? 'ابحث في جميع الحقول...';
+      case 'id': return localizations?.searchById ?? 'ابحث برقم المنتج (مثل: 123)...';
+      case 'name': return localizations?.searchByName ?? 'ابحث باسم المنتج...';
+      case 'invoice': return localizations?.searchByInvoice ?? 'ابحث برقم الفاتورة...';
+      case 'tax': return localizations?.searchByTax ?? 'ابحث بالرقم الضريبي...';
+      case 'po': return localizations?.searchByPo ?? 'ابحث برقم PO...';
+      case 'supplier': return localizations?.searchBySupplier ?? 'ابحث باسم المورد...';
+      default: return localizations?.searchText ?? 'ابحث...';
     }
   }
 
@@ -417,24 +371,23 @@ final List<Map<String, String>> _searchFields = [
   }
 
   Widget _buildProductsTable() {
+    final localizations = AppLocalizations.of(context);
+    
     return Card(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SingleChildScrollView(
           child: DataTable(
             columnSpacing: 20,
-            columns: const [
-              DataColumn(label: Text('ID')),
-              DataColumn(label: Text('اسم المنتج')),
-              DataColumn(label: Text('الفئة')),
-              DataColumn(label: Text('الكمية')),
-              DataColumn(label: Text('الوحدة')),
-              DataColumn(label: Text('المخزن')),
-              DataColumn(label: Text('المورد')),
-              DataColumn(label: Text('الرقم الضريبي')),
-              DataColumn(label: Text('رقم الفاتورة')),
-              DataColumn(label: Text('رقم PO')),
-              DataColumn(label: Text('الإجراءات')),
+            columns: [
+              DataColumn(label: Text(localizations?.productId ?? 'ID')),
+              DataColumn(label: Text(localizations?.productName ?? 'اسم المنتج')),
+              DataColumn(label: Text(localizations?.category ?? 'الفئة')),
+              DataColumn(label: Text(localizations?.supplier ?? 'المورد')),
+              DataColumn(label: Text(localizations?.taxNumber ?? 'الرقم الضريبي')),
+              DataColumn(label: Text(localizations?.invoiceNumber ?? 'رقم الفاتورة')),
+              DataColumn(label: Text(localizations?.poNumber ?? 'رقم PO')),
+              DataColumn(label: Text(localizations?.actions ?? 'الإجراءات')),
             ],
             rows: _products.map((product) {
               return DataRow(
@@ -470,7 +423,7 @@ final List<Map<String, String>> _searchFields = [
                     SizedBox(
                       width: 120,
                       child: Text(
-                        product['category']?['name'] ?? 'غير محدد',
+                        product['category']?['name'] ?? (localizations?.category ?? 'غير محدد'),
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: product['category'] != null ? null : Colors.grey,
@@ -479,44 +432,10 @@ final List<Map<String, String>> _searchFields = [
                     ),
                   ),
                   DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getQuantityColor(product['quantity']).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        product['quantity'].toString(),
-                        style: TextStyle(
-                          color: _getQuantityColor(product['quantity']),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _getUnitIcon(product['unit']),
-                        const SizedBox(width: 4),
-                        Text(product['unit']),
-                      ],
-                    ),
-                  ),
-                  DataCell(
-                    Text(
-                      product['warehouse']?['name'] ?? 'غير محدد',
-                      style: TextStyle(
-                        color: product['warehouse'] != null ? null : Colors.grey,
-                      ),
-                    ),
-                  ),
-                  DataCell(
                     SizedBox(
                       width: 100,
                       child: Text(
-                        product['supplier'] ?? 'غير محدد',
+                        product['supplier'] ?? (localizations?.supplier ?? 'غير محدد'),
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: product['supplier'] != null ? null : Colors.grey,
@@ -555,17 +474,17 @@ final List<Map<String, String>> _searchFields = [
                         IconButton(
                           icon: const Icon(Icons.visibility, color: Colors.blue),
                           onPressed: () => _viewProduct(product),
-                          tooltip: 'عرض التفاصيل',
+                          tooltip: localizations?.view ?? 'عرض التفاصيل',
                         ),
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.orange),
                           onPressed: () => _showProductDialog(product: product),
-                          tooltip: 'تعديل',
+                          tooltip: localizations?.edit ?? 'تعديل',
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () => _deleteProduct(product),
-                          tooltip: 'حذف',
+                          tooltip: localizations?.delete ?? 'حذف',
                         ),
                       ],
                     ),
@@ -579,27 +498,6 @@ final List<Map<String, String>> _searchFields = [
     );
   }
 
-  Color _getQuantityColor(int quantity) {
-    if (quantity > 10) return Colors.green;
-    if (quantity > 0) return Colors.orange;
-    return Colors.red;
-  }
-
-  Widget _getUnitIcon(String unit) {
-    switch (unit) {
-      case 'متر':
-        return const Icon(Icons.straighten, size: 16, color: Colors.blue);
-      case 'كيلو':
-        return const Icon(Icons.monitor_weight, size: 16, color: Colors.green);
-      case 'لتر':
-        return const Icon(Icons.local_drink, size: 16, color: Colors.orange);
-      case 'وحدة':
-        return const Icon(Icons.inventory_2, size: 16, color: Colors.purple);
-      default:
-        return const Icon(Icons.help_outline, size: 16, color: Colors.grey);
-    }
-  }
-
   // ============== DIALOG METHODS ==============
 
   Future<void> _showProductDialog({Map<String, dynamic>? product}) async {
@@ -607,8 +505,6 @@ final List<Map<String, String>> _searchFields = [
       context: context,
       builder: (context) => ProductFormDialog(
         product: product,
-        units: _units,
-        warehouses: _warehouses,
         productsLogic: _productsLogic,
         onSuccess: () {
           _loadInitialData();
@@ -700,16 +596,12 @@ final List<Map<String, String>> _searchFields = [
 
 class ProductFormDialog extends StatefulWidget {
   final Map<String, dynamic>? product;
-  final List<String> units;
-  final List<Map<String, dynamic>> warehouses;
   final ProductsLogic productsLogic;
   final VoidCallback onSuccess;
 
   const ProductFormDialog({
     super.key,
     this.product,
-    required this.units,
-    required this.warehouses,
     required this.productsLogic,
     required this.onSuccess,
   });
@@ -721,15 +613,11 @@ class ProductFormDialog extends StatefulWidget {
 class _ProductFormDialogState extends State<ProductFormDialog> {
   late final TextEditingController _idController;
   late final TextEditingController _nameController;
-  late final TextEditingController _quantityController;
   late final TextEditingController _supplierController;
   late final TextEditingController _taxNumberController;
   late final TextEditingController _invoiceNumberController;
   late final TextEditingController _poNumberController;
 
-  String _selectedUnit = 'وحدة';
-  int? _selectedWarehouse;
-  
   // للفئات الهرمية
   List<Map<String, dynamic>> _level1Categories = [];
   List<Map<String, dynamic>> _level2Categories = [];
@@ -748,17 +636,12 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   void initState() {
     super.initState();
     
-    final isEditing = widget.product != null;
-   _idController = TextEditingController(text: widget.product?['id']?.toString() ?? '');
+    _idController = TextEditingController(text: widget.product?['id']?.toString() ?? '');
     _nameController = TextEditingController(text: widget.product?['name']?.toString() ?? '');
-    _quantityController = TextEditingController(text: widget.product?['quantity']?.toString() ?? '0');
     _supplierController = TextEditingController(text: widget.product?['supplier']?.toString() ?? '');
     _taxNumberController = TextEditingController(text: widget.product?['supplier_tax_number']?.toString() ?? '');
     _invoiceNumberController = TextEditingController(text: widget.product?['electronic_invoice_number']?.toString() ?? '');
     _poNumberController = TextEditingController(text: widget.product?['po_number']?.toString() ?? '');
-    
-    _selectedUnit = widget.product?['unit'] ?? widget.units.first;
-    _selectedWarehouse = widget.product?['warehouse_id'];
     
     _loadRootCategories();
   }
@@ -825,9 +708,12 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.product != null;
+    final localizations = AppLocalizations.of(context);
     
     return AlertDialog(
-      title: Text(isEditing ? 'تعديل المنتج' : 'إضافة منتج جديد'),
+      title: Text(isEditing 
+          ? (localizations?.editProduct ?? 'تعديل المنتج') 
+          : (localizations?.addProduct ?? 'إضافة منتج جديد')),
       content: SizedBox(
         width: 700,
         height: 600,
@@ -843,9 +729,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                       controller: _idController,
                       enabled: !isEditing,
                       decoration: InputDecoration(
-                        labelText: 'Product ID *',
+                        labelText: '${localizations?.productId ?? 'Product ID'} *',
                         border: const OutlineInputBorder(),
-                        errorText: _isIdValid ? null : 'ID already exists',
+                        errorText: _isIdValid ? null : (localizations?.productIdExists ?? 'ID already exists'),
                       ),
                       onChanged: _validateId,
                     ),
@@ -854,9 +740,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   Expanded(
                     child: TextField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'اسم المنتج *',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: '${localizations?.productName ?? 'اسم المنتج'} *',
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -868,78 +754,13 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               _buildCategoriesSection(),
               const SizedBox(height: 16),
               
-              // Quantity, Unit & Warehouse
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _quantityController,
-                      decoration: const InputDecoration(
-                        labelText: 'الكمية الأولية',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedUnit,
-                      decoration: const InputDecoration(
-                        labelText: 'الوحدة *',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: widget.units.map((unit) {
-                        return DropdownMenuItem(
-                          value: unit,
-                          child: Text(unit),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedUnit = value!;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: DropdownButtonFormField<int?>(
-                      value: _selectedWarehouse,
-                      decoration: const InputDecoration(
-                        labelText: 'المخزن الافتراضي',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        const DropdownMenuItem<int?>(
-                          value: null,
-                          child: Text('لا يوجد'),
-                        ),
-                        ...widget.warehouses.map((warehouse) {
-                          return DropdownMenuItem<int?>(
-                            value: warehouse['id'],
-                            child: Text(warehouse['name']),
-                          );
-                        }),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedWarehouse = value;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
               // Supplier Info
               TextField(
                 controller: _supplierController,
-                decoration: const InputDecoration(
-                  labelText: 'المورد',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.business),
+                decoration: InputDecoration(
+                  labelText: localizations?.supplier ?? 'المورد',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.business),
                 ),
               ),
               const SizedBox(height: 16),
@@ -950,10 +771,10 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   Expanded(
                     child: TextField(
                       controller: _taxNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'الرقم الضريبي للمورد',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.receipt_long),
+                      decoration: InputDecoration(
+                        labelText: localizations?.taxNumber ?? 'الرقم الضريبي للمورد',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.receipt_long),
                       ),
                     ),
                   ),
@@ -961,10 +782,10 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   Expanded(
                     child: TextField(
                       controller: _invoiceNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'رقم الفاتورة الإلكترونية',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.receipt),
+                      decoration: InputDecoration(
+                        labelText: localizations?.invoiceNumber ?? 'رقم الفاتورة الإلكترونية',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.receipt),
                       ),
                     ),
                   ),
@@ -974,9 +795,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               
               TextField(
                 controller: _poNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'رقم أمر الشراء (PO)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localizations?.poNumber ?? 'رقم أمر الشراء (PO)',
+                  border: const OutlineInputBorder(),
                   prefixIcon: Icon(Icons.assignment),
                 ),
               ),
@@ -987,7 +808,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('إلغاء'),
+          child: Text(localizations?.cancel ?? 'إلغاء'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _saveProduct,
@@ -997,19 +818,24 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text(isEditing ? 'تحديث' : 'إضافة'),
+              : Text(isEditing 
+                  ? (localizations?.edit ?? 'تحديث') 
+                  : (localizations?.add ?? 'إضافة')),
         ),
       ],
     );
   }
 
   Widget _buildCategoriesSection() {
+    final localizations = AppLocalizations.of(context);
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'الفئات الهرمية:',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        Text(
+          isEnglish ? 'Hierarchical Categories:' : 'الفئات الهرمية:',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 8),
         
@@ -1019,12 +845,15 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
             Expanded(
               child: DropdownButtonFormField<int?>(
                 value: _selectedLevel1,
-                decoration: const InputDecoration(
-                  labelText: 'الفئة الرئيسية',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: localizations?.mainCategory ?? 'الفئة الرئيسية',
+                  border: const OutlineInputBorder(),
                 ),
                 items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('اختر الفئة')),
+                  DropdownMenuItem<int?>(
+                      value: null, 
+                      child: Text(isEnglish ? 'Select Category' : 'اختر الفئة')
+                  ),
                   ..._level1Categories.map((cat) {
                     return DropdownMenuItem<int?>(
                       value: cat['id'],
@@ -1053,7 +882,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
             IconButton(
               onPressed: () => _showAddCategoryDialog(1, null),
               icon: const Icon(Icons.add_circle, color: Colors.green),
-              tooltip: 'إضافة فئة رئيسية',
+              tooltip: isEnglish ? 'Add Main Category' : 'إضافة فئة رئيسية',
             ),
           ],
         ),
@@ -1066,12 +895,15 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               Expanded(
                 child: DropdownButtonFormField<int?>(
                   value: _selectedLevel2,
-                  decoration: const InputDecoration(
-                    labelText: 'الفئة الفرعية الأولى',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations?.subCategory1 ?? 'الفئة الفرعية الأولى',
+                    border: const OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('اختر الفئة')),
+                    DropdownMenuItem<int?>(
+                        value: null, 
+                        child: Text(isEnglish ? 'Select Category' : 'اختر الفئة')
+                    ),
                     ..._level2Categories.map((cat) {
                       return DropdownMenuItem<int?>(
                         value: cat['id'],
@@ -1098,7 +930,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               IconButton(
                 onPressed: () => _showAddCategoryDialog(2, _selectedLevel1),
                 icon: const Icon(Icons.add_circle, color: Colors.green),
-                tooltip: 'إضافة فئة فرعية',
+                tooltip: isEnglish ? 'Add Subcategory' : 'إضافة فئة فرعية',
               ),
             ],
           ),
@@ -1112,12 +944,15 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               Expanded(
                 child: DropdownButtonFormField<int?>(
                   value: _selectedLevel3,
-                  decoration: const InputDecoration(
-                    labelText: 'الفئة الفرعية الثانية',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations?.subCategory2 ?? 'الفئة الفرعية الثانية',
+                    border: const OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('اختر الفئة')),
+                    DropdownMenuItem<int?>(
+                        value: null, 
+                        child: Text(isEnglish ? 'Select Category' : 'اختر الفئة')
+                    ),
                     ..._level3Categories.map((cat) {
                       return DropdownMenuItem<int?>(
                         value: cat['id'],
@@ -1142,7 +977,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               IconButton(
                 onPressed: () => _showAddCategoryDialog(3, _selectedLevel2),
                 icon: const Icon(Icons.add_circle, color: Colors.green),
-                tooltip: 'إضافة فئة فرعية',
+                tooltip: isEnglish ? 'Add Subcategory' : 'إضافة فئة فرعية',
               ),
             ],
           ),
@@ -1156,12 +991,15 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               Expanded(
                 child: DropdownButtonFormField<int?>(
                   value: _selectedLevel4,
-                  decoration: const InputDecoration(
-                    labelText: 'الفئة الفرعية الثالثة',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations?.subCategory3 ?? 'الفئة الفرعية الثالثة',
+                    border: const OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('اختر الفئة')),
+                    DropdownMenuItem<int?>(
+                        value: null, 
+                        child: Text(isEnglish ? 'Select Category' : 'اختر الفئة')
+                    ),
                     ..._level4Categories.map((cat) {
                       return DropdownMenuItem<int?>(
                         value: cat['id'],
@@ -1180,7 +1018,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               IconButton(
                 onPressed: () => _showAddCategoryDialog(4, _selectedLevel3),
                 icon: const Icon(Icons.add_circle, color: Colors.green),
-                tooltip: 'إضافة فئة فرعية',
+                tooltip: isEnglish ? 'Add Subcategory' : 'إضافة فئة فرعية',
               ),
             ],
           ),
@@ -1192,28 +1030,29 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   Future<void> _showAddCategoryDialog(int level, int? parentId) async {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
+    final isEnglish = Localizations.localeOf(context).languageCode == 'en';
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('إضافة فئة ${_getLevelName(level)}'),
+        title: Text('${isEnglish ? 'Add' : 'إضافة'} ${_getLevelName(level, isEnglish)}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'اسم الفئة *',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: '${isEnglish ? 'Category Name' : 'اسم الفئة'} *',
+                border: const OutlineInputBorder(),
               ),
               autofocus: true,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'الوصف (اختياري)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: isEnglish ? 'Description (Optional)' : 'الوصف (اختياري)',
+                border: const OutlineInputBorder(),
               ),
               maxLines: 2,
             ),
@@ -1222,7 +1061,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
+            child: Text(isEnglish ? 'Cancel' : 'إلغاء'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1230,7 +1069,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                 Navigator.pop(context, true);
               }
             },
-            child: const Text('إضافة'),
+            child: Text(isEnglish ? 'Add' : 'إضافة'),
           ),
         ],
       ),
@@ -1267,13 +1106,13 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     }
   }
 
-  String _getLevelName(int level) {
+  String _getLevelName(int level, [bool isEnglish = false]) {
     switch (level) {
-      case 1: return 'رئيسية';
-      case 2: return 'فرعية أولى';
-      case 3: return 'فرعية ثانية';
-      case 4: return 'فرعية ثالثة';
-      default: return 'فرعية';
+      case 1: return isEnglish ? 'Main Category' : 'فئة رئيسية';
+      case 2: return isEnglish ? 'First Subcategory' : 'فئة فرعية أولى';
+      case 3: return isEnglish ? 'Second Subcategory' : 'فئة فرعية ثانية';
+      case 4: return isEnglish ? 'Third Subcategory' : 'فئة فرعية ثالثة';
+      default: return isEnglish ? 'Subcategory' : 'فئة فرعية';
     }
   }
 
@@ -1297,7 +1136,6 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     final validation = widget.productsLogic.validateProductData(
       id: _idController.text.trim(),
       name: _nameController.text.trim(),
-      unit: _selectedUnit,
     );
 
     if (validation != null) {
@@ -1325,27 +1163,21 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         await widget.productsLogic.updateProduct(
           id: _idController.text.trim(),
           name: _nameController.text.trim(),
-          unit: _selectedUnit,
           categoryId: _finalCategoryId,
-          warehouseId: _selectedWarehouse,
           supplier: _supplierController.text.trim().isNotEmpty ? _supplierController.text.trim() : null,
           supplierTaxNumber: _taxNumberController.text.trim().isNotEmpty ? _taxNumberController.text.trim() : null,
           electronicInvoiceNumber: _invoiceNumberController.text.trim().isNotEmpty ? _invoiceNumberController.text.trim() : null,
           poNumber: _poNumberController.text.trim().isNotEmpty ? _poNumberController.text.trim() : null,
-          quantity: int.tryParse(_quantityController.text) ?? 0,
         );
       } else {
         await widget.productsLogic.addProduct(
           id: _idController.text.trim(),
           name: _nameController.text.trim(),
-          unit: _selectedUnit,
           categoryId: _finalCategoryId,
-          warehouseId: _selectedWarehouse,
           supplier: _supplierController.text.trim().isNotEmpty ? _supplierController.text.trim() : null,
           supplierTaxNumber: _taxNumberController.text.trim().isNotEmpty ? _taxNumberController.text.trim() : null,
           electronicInvoiceNumber: _invoiceNumberController.text.trim().isNotEmpty ? _invoiceNumberController.text.trim() : null,
           poNumber: _poNumberController.text.trim().isNotEmpty ? _poNumberController.text.trim() : null,
-          quantity: int.tryParse(_quantityController.text) ?? 0,
         );
       }
 
@@ -1376,7 +1208,6 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   void dispose() {
     _idController.dispose();
     _nameController.dispose();
-    _quantityController.dispose();
     _supplierController.dispose();
     _taxNumberController.dispose();
     _invoiceNumberController.dispose();
@@ -1484,8 +1315,6 @@ class ProductDetailsDialog extends StatelessWidget {
               _buildInfoSection('المعلومات الأساسية', [
                 _buildDetailRow('الاسم:', product['name']),
                 _buildDetailRow('الفئة:', product['category']?['name'] ?? 'غير محدد'),
-                _buildDetailRow('الكمية:', '${product['quantity']} ${product['unit']}'),
-                _buildDetailRow('المخزن:', product['warehouse']?['name'] ?? 'غير محدد'),
               ]),
 
               // Supplier Info
@@ -1501,7 +1330,6 @@ class ProductDetailsDialog extends StatelessWidget {
 
               // Stock Info using FutureBuilder
               const SizedBox(height: 16),
-              _buildStockInfoSection(),
             ],
           ),
         ),
@@ -1548,26 +1376,6 @@ class ProductDetailsDialog extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildStockInfoSection() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: productsLogic.getProductTotalStock( product['id'].toString()),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final stockData = snapshot.data ?? {};
-        
-        return _buildInfoSection('معلومات المخزون', [
-          _buildDetailRow('الكمية الإجمالية:', stockData['total_quantity']?.toString() ?? '0'),
-          _buildDetailRow('الكمية المحجوزة:', stockData['total_reserved']?.toString() ?? '0'),
-          _buildDetailRow('الكمية المتاحة:', stockData['available_quantity']?.toString() ?? '0'),
-          _buildDetailRow('عدد المخازن:', stockData['warehouses_count']?.toString() ?? '0'),
-        ]);
-      },
     );
   }
 
