@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
+import '../backend/suppliers_logic.dart';
 
 class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen({super.key});
@@ -8,23 +10,82 @@ class SuppliersScreen extends StatefulWidget {
 }
 
 class _SuppliersScreenState extends State<SuppliersScreen> {
-  final List<Supplier> _suppliers = [
-    Supplier('SUP001', 'Dell Inc', 'tech@dell.com', '+1-800-DELL', 'Round Rock, TX', 'Active'),
-    Supplier('SUP002', 'Fashion Co', 'orders@fashionco.com', '+1-555-FASHION', 'New York, NY', 'Active'),
-    Supplier('SUP003', 'Coffee Ltd', 'sales@coffeeltd.com', '+1-555-COFFEE', 'Seattle, WA', 'Inactive'),
-  ];
+  final SupplierLogic _supplierLogic = SupplierLogic();
+  List<Supplier> _suppliers = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuppliers();
+  }
+
+  Future<void> _loadSuppliers() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      
+      final suppliers = await _supplierLogic.getSuppliers();
+      setState(() {
+        _suppliers = suppliers;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(localizations?.suppliers ?? 'Suppliers'),
+          automaticallyImplyLeading: false,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(localizations?.suppliers ?? 'Suppliers'),
+          automaticallyImplyLeading: false,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Error: $_errorMessage'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadSuppliers,
+                child: Text(localizations?.retry ?? 'Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Suppliers'),
+        title: Text(localizations?.suppliers ?? 'Suppliers'),
         automaticallyImplyLeading: false,
         actions: [
           ElevatedButton.icon(
             onPressed: () => _showSupplierDialog(),
             icon: const Icon(Icons.add),
-            label: const Text('Add Supplier'),
+            label: Text(localizations?.add ?? 'Add Supplier'),
           ),
           const SizedBox(width: 16),
         ],
@@ -32,38 +93,38 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Card(
-          child: SingleChildScrollView(
+          child: _suppliers.isEmpty 
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    'No suppliers found\nClick "Add Supplier" to get started',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              )
+            : SingleChildScrollView(
             child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Supplier Code')),
-                DataColumn(label: Text('Name')),
-                DataColumn(label: Text('Email')),
-                DataColumn(label: Text('Phone')),
-                DataColumn(label: Text('Address')),
-                DataColumn(label: Text('Status')),
-                DataColumn(label: Text('Actions')),
+              columns: [
+                DataColumn(label: Text(localizations?.name ?? 'Name')),
+                DataColumn(label: Text(localizations?.taxNumber ?? 'Tax Number')),
+                DataColumn(label: Text('Specialization')),
+                DataColumn(label: Text(localizations?.address ?? 'Address')),
+                DataColumn(label: Text(localizations?.actions ?? 'Actions')),
               ],
               rows: _suppliers.map((supplier) {
                 return DataRow(
                   cells: [
-                    DataCell(Text(supplier.code)),
                     DataCell(Text(supplier.name)),
-                    DataCell(Text(supplier.email)),
-                    DataCell(Text(supplier.phone)),
-                    DataCell(Text(supplier.address)),
+                    DataCell(Text(supplier.taxNumber)),
+                    DataCell(Text(supplier.specialization)),
                     DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: supplier.status == 'Active' ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                      SizedBox(
+                        width: 200,
                         child: Text(
-                          supplier.status,
-                          style: TextStyle(
-                            color: supplier.status == 'Active' ? Colors.green : Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          supplier.address,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
@@ -93,18 +154,17 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   }
 
   void _showSupplierDialog({Supplier? supplier}) {
+    final localizations = AppLocalizations.of(context);
     final isEditing = supplier != null;
-    final codeController = TextEditingController(text: supplier?.code ?? '');
     final nameController = TextEditingController(text: supplier?.name ?? '');
-    final emailController = TextEditingController(text: supplier?.email ?? '');
-    final phoneController = TextEditingController(text: supplier?.phone ?? '');
+    final taxNumberController = TextEditingController(text: supplier?.taxNumber ?? '');
+    final specializationController = TextEditingController(text: supplier?.specialization ?? '');
     final addressController = TextEditingController(text: supplier?.address ?? '');
-    String selectedStatus = supplier?.status ?? 'Active';
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isEditing ? 'Edit Supplier' : 'Add Supplier'),
+        title: Text(isEditing ? (localizations?.edit ?? 'Edit Supplier') : (localizations?.add ?? 'Add Supplier')),
         content: SizedBox(
           width: 500,
           child: SingleChildScrollView(
@@ -112,58 +172,36 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
-                  controller: codeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Supplier Code',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Supplier Name',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations?.name ?? 'Supplier Name',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
+                  controller: taxNumberController,
+                  decoration: InputDecoration(
+                    labelText: localizations?.taxNumber ?? 'Tax Number',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: phoneController,
+                  controller: specializationController,
                   decoration: const InputDecoration(
-                    labelText: 'Phone',
+                    labelText: 'Specialization',
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Address',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations?.address ?? 'Address',
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 2,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedStatus,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ['Active', 'Inactive'].map((status) {
-                    return DropdownMenuItem(value: status, child: Text(status));
-                  }).toList(),
-                  onChanged: (value) {
-                    selectedStatus = value!;
-                  },
                 ),
               ],
             ),
@@ -172,57 +210,107 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              // Save supplier logic here
-              Navigator.pop(context);
+            onPressed: () async {
+              if (nameController.text.isNotEmpty && 
+                  taxNumberController.text.isNotEmpty &&
+                  specializationController.text.isNotEmpty &&
+                  addressController.text.isNotEmpty) {
+                
+                try {
+                  // التحقق من وجود الرقم الضريبي
+                  final taxExists = await _supplierLogic.isTaxNumberExists(
+                    taxNumberController.text,
+                    excludeId: supplier?.id,
+                  );
+                  
+                  if (taxExists) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Tax number already exists'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final newSupplier = Supplier(
+                    name: nameController.text,
+                    taxNumber: taxNumberController.text,
+                    specialization: specializationController.text,
+                    address: addressController.text,
+                  );
+
+                  if (isEditing) {
+                    await _supplierLogic.updateSupplier(supplier.id!, newSupplier);
+                  } else {
+                    await _supplierLogic.addSupplier(newSupplier);
+                  }
+                  
+                  Navigator.pop(context);
+                  _loadSuppliers(); // إعادة تحميل البيانات
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please fill all fields'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
-            child: Text(isEditing ? 'Update' : 'Add'),
+            child: Text(isEditing ? (localizations?.edit ?? 'Update') : (localizations?.add ?? 'Add')),
           ),
         ],
       ),
     );
   }
 
-  void _deleteSupplier(Supplier supplier) {
+  Future<void> _deleteSupplier(Supplier supplier) async {
+    final localizations = AppLocalizations.of(context);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Supplier'),
-        content: Text('Are you sure you want to delete ${supplier.name}?'),
+        title: Text(localizations?.delete ?? 'Delete Supplier'),
+        content: Text('${localizations?.deleteConfirmation ?? "Are you sure you want to delete"} ${supplier.name}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _suppliers.remove(supplier);
-              });
-              Navigator.pop(context);
+            onPressed: () async {
+              try {
+                await _supplierLogic.deleteSupplier(supplier.id!);
+                Navigator.pop(context);
+                _loadSuppliers(); // إعادة تحميل البيانات
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Delete'),
+            child: Text(localizations?.delete ?? 'Delete'),
           ),
         ],
       ),
     );
   }
-}
-
-class Supplier {
-  final String code;
-  final String name;
-  final String email;
-  final String phone;
-  final String address;
-  final String status;
-
-  Supplier(this.code, this.name, this.email, this.phone, this.address, this.status);
 }

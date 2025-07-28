@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../backend/products_logic.dart';
+import '../backend/suppliers_logic.dart';
 import '../l10n/app_localizations.dart';
-import '../services/language_service.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -632,6 +631,12 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   bool _isLoading = false;
   bool _isIdValid = true;
 
+  // للموردين
+  final SupplierLogic _supplierLogic = SupplierLogic();
+  List<Supplier> _supplierSuggestions = [];
+  bool _isLoadingSuppliers = false;
+  Supplier? _selectedSupplier;
+
   @override
   void initState() {
     super.initState();
@@ -644,6 +649,27 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     _poNumberController = TextEditingController(text: widget.product?['po_number']?.toString() ?? '');
     
     _loadRootCategories();
+    _loadSupplierDataIfEditing();
+  }
+
+  // تحميل بيانات المورد إذا كان في وضع التعديل
+  Future<void> _loadSupplierDataIfEditing() async {
+    if (widget.product != null && 
+        widget.product!['supplier_tax_number'] != null && 
+        widget.product!['supplier_tax_number'].toString().isNotEmpty) {
+      try {
+        final supplier = await _supplierLogic.getSupplierByTaxNumber(
+          widget.product!['supplier_tax_number'].toString()
+        );
+        if (supplier != null && mounted) {
+          setState(() {
+            _selectedSupplier = supplier;
+          });
+        }
+      } catch (e) {
+        print('Error loading supplier data: $e');
+      }
+    }
   }
 
   Future<void> _loadRootCategories() async {
@@ -754,15 +780,8 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
               _buildCategoriesSection(),
               const SizedBox(height: 16),
               
-              // Supplier Info
-              TextField(
-                controller: _supplierController,
-                decoration: InputDecoration(
-                  labelText: localizations?.supplier ?? 'المورد',
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.business),
-                ),
-              ),
+              // Supplier Info with Autocomplete
+              _buildSupplierAutocomplete(),
               const SizedBox(height: 16),
               
               // Additional Info
@@ -776,6 +795,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                         border: const OutlineInputBorder(),
                         prefixIcon: const Icon(Icons.receipt_long),
                       ),
+                      onChanged: _onTaxNumberChanged,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1129,6 +1149,174 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         _isIdValid = false;
       });
     }
+  }
+
+  // معالج تغيير الرقم الضريبي
+  Future<void> _onTaxNumberChanged(String value) async {
+    if (value.trim().isEmpty) {
+      _clearSupplierInfo();
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoadingSuppliers = true;
+      });
+
+      final supplier = await _supplierLogic.getSupplierByTaxNumber(value.trim());
+      
+      if (supplier != null && mounted) {
+        setState(() {
+          _selectedSupplier = supplier;
+          _supplierController.text = supplier.name;
+        });
+      }
+    } catch (e) {
+      print('Error fetching supplier by tax number: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSuppliers = false;
+        });
+      }
+    }
+  }
+
+  // مسح معلومات المورد
+  void _clearSupplierInfo() {
+    setState(() {
+      _selectedSupplier = null;
+      _supplierController.clear();
+      _supplierSuggestions.clear();
+    });
+  }
+
+  // البحث في الموردين
+  Future<void> _searchSuppliers(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _supplierSuggestions.clear();
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoadingSuppliers = true;
+      });
+
+      final suggestions = await _supplierLogic.getSupplierSuggestions(query.trim());
+      
+      if (mounted) {
+        setState(() {
+          _supplierSuggestions = suggestions;
+        });
+      }
+    } catch (e) {
+      print('Error searching suppliers: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSuppliers = false;
+        });
+      }
+    }
+  }
+
+  // اختيار مورد من القائمة
+  void _selectSupplier(Supplier supplier) {
+    setState(() {
+      _selectedSupplier = supplier;
+      _supplierController.text = supplier.name;
+      _taxNumberController.text = supplier.taxNumber;
+      _supplierSuggestions.clear();
+    });
+  }
+
+  // بناء widget الاختيار التلقائي للموردين
+  Widget _buildSupplierAutocomplete() {
+    final localizations = AppLocalizations.of(context);
+    
+    return Autocomplete<Supplier>(
+      displayStringForOption: (Supplier supplier) => supplier.name,
+      optionsBuilder: (TextEditingValue textEditingValue) async {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<Supplier>.empty();
+        }
+        
+        await _searchSuppliers(textEditingValue.text);
+        return _supplierSuggestions;
+      },
+      onSelected: (Supplier supplier) {
+        _selectSupplier(supplier);
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        // ربط controller الخارجي مع controller الداخلي
+        _supplierController.addListener(() {
+          if (controller.text != _supplierController.text) {
+            controller.text = _supplierController.text;
+          }
+        });
+        
+        controller.addListener(() {
+          if (_supplierController.text != controller.text) {
+            _supplierController.text = controller.text;
+          }
+        });
+
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: localizations?.supplier ?? 'المورد',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.business),
+            suffixIcon: _isLoadingSuppliers 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : (_selectedSupplier != null 
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : null),
+            helperText: _selectedSupplier != null 
+                ? 'الرقم الضريبي: ${_selectedSupplier!.taxNumber}'
+                : null,
+          ),
+          onSubmitted: (value) => onFieldSubmitted(),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4.0,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              width: MediaQuery.of(context).size.width * 0.6,
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, index) {
+                  final supplier = options.elementAt(index);
+                  return ListTile(
+                    title: Text(supplier.name),
+                    subtitle: Text('الرقم الضريبي: ${supplier.taxNumber}'),
+                    trailing: Text(supplier.specialization),
+                    onTap: () => onSelected(supplier),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _saveProduct() async {

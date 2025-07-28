@@ -69,6 +69,8 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get categories => "إدارة الفئات";
   @override
+  String get warehouses => "إدارة المخازن";
+  @override
   String get stockIn => "إدخال مخزون";
   @override
   String get stockOut => "إخراج مخزون";
@@ -90,6 +92,39 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settings => "الإعدادات";
   @override
   String get logout => "تسجيل الخروج";
+
+  @override
+  String get warehousesTitle => "المخازن";
+  @override
+  String get overview => "نظرة عامة";
+  @override
+  String get warehouseDetails => "تفاصيل المخزن";
+  @override
+  String get stockByLocation => "المخزون حسب الموقع";
+  @override
+  String get addWarehouse => "إضافة مخزن";
+  @override
+  String get editWarehouse => "تعديل المخزن";
+  @override
+  String get deleteWarehouse => "حذف المخزن";
+  @override
+  String get warehouseCode => "كود المخزن";
+  @override
+  String get warehouseName => "اسم المخزن";
+  @override
+  String get location => "الموقع";
+  @override
+  String get address => "العنوان";
+  @override
+  String get manager => "المدير";
+  @override
+  String get accountant => "المحاسب";
+  @override
+  String get warehouseKeeper => "أمين المخزن";
+  @override
+  String get quantity => "الكمية";
+  @override
+  String get unit => "الوحدة";
 
   @override
   String get productsTitle => "إدارة المنتجات";

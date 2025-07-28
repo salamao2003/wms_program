@@ -69,6 +69,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get categories => "Categories Management";
   @override
+  String get warehouses => "Warehouses Management";
+  @override
   String get stockIn => "Stock In";
   @override
   String get stockOut => "Stock Out";
@@ -90,6 +92,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settings => "Settings";
   @override
   String get logout => "Logout";
+
+  @override
+  String get warehousesTitle => "Warehouses";
+  @override
+  String get overview => "Overview";
+  @override
+  String get warehouseDetails => "Warehouse Details";
+  @override
+  String get stockByLocation => "Stock by Location";
+  @override
+  String get addWarehouse => "Add Warehouse";
+  @override
+  String get editWarehouse => "Edit Warehouse";
+  @override
+  String get deleteWarehouse => "Delete Warehouse";
+  @override
+  String get warehouseCode => "Warehouse Code";
+  @override
+  String get warehouseName => "Warehouse Name";
+  @override
+  String get location => "Location";
+  @override
+  String get address => "Address";
+  @override
+  String get manager => "Manager";
+  @override
+  String get accountant => "Accountant";
+  @override
+  String get warehouseKeeper => "Warehouse Keeper";
+  @override
+  String get quantity => "Quantity";
+  @override
+  String get unit => "Unit";
 
   @override
   String get productsTitle => "Products Management";

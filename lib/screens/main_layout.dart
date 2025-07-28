@@ -75,7 +75,7 @@ class _MainLayoutState extends State<MainLayout> {
         return [
           NavigationItem(Icons.home, localizations?.dashboard ?? 'الرئيسية', _buildHomeScreen()),
           NavigationItem(Icons.inventory, localizations?.products ?? 'المنتجات', ProductsScreen()),
-          NavigationItem(Icons.warehouse, 'المخازن', WarehousesScreen()),
+          NavigationItem(Icons.warehouse, localizations?.warehouses ?? 'المخازن', WarehousesScreen()),
           NavigationItem(Icons.input, localizations?.stockIn ?? 'إدخال مخزون', StockInScreen()),
           NavigationItem(Icons.output, localizations?.stockOut ?? 'إخراج مخزون', StockOutScreen()),
           NavigationItem(Icons.history, localizations?.transactions ?? 'المعاملات', TransactionsScreen()),

@@ -36,6 +36,7 @@
     "dashboard": "لوحة التحكم",
     "products": "إدارة المنتجات",
     "categories": "إدارة الفئات",
+    "warehouses": "إدارة المخازن",
     "stock_in": "إدخال مخزون",
     "stock_out": "إخراج مخزون",
     "inventory_count": "جرد المخزون",
@@ -47,6 +48,32 @@
     "invitations": "إدارة الدعوات",
     "settings": "الإعدادات",
     "logout": "تسجيل الخروج"
+  },
+  
+  "warehouses": {
+    "title": "المخازن",
+    "overview": "نظرة عامة",
+    "warehouse_details": "تفاصيل المخزن",
+    "stock_by_location": "المخزون حسب الموقع",
+    "add_warehouse": "إضافة مخزن",
+    "edit_warehouse": "تعديل المخزن",
+    "delete_warehouse": "حذف المخزن",
+    "warehouse_code": "كود المخزن",
+    "warehouse_name": "اسم المخزن",
+    "location": "الموقع",
+    "address": "العنوان",
+    "manager": "المدير",
+    "accountant": "المحاسب",
+    "warehouse_keeper": "أمين المخزن",
+    "code": "الكود",
+    "name": "الاسم",
+    "update": "تحديث",
+    "product_id": "معرف المنتج",
+    "product_name": "اسم المنتج",
+    "category": "الفئة",
+    "quantity": "الكمية",
+    "unit": "الوحدة",
+    "delete_confirmation": "هل أنت متأكد من حذف هذا المخزن؟"
   },
   
   "products": {

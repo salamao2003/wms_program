@@ -36,6 +36,7 @@
     "dashboard": "Dashboard",
     "products": "Products Management",
     "categories": "Categories Management",
+    "warehouses": "Warehouses Management",
     "stock_in": "Stock In",
     "stock_out": "Stock Out",
     "inventory_count": "Inventory Count",
@@ -47,6 +48,32 @@
     "invitations": "Invitations Management",
     "settings": "Settings",
     "logout": "Logout"
+  },
+  
+  "warehouses": {
+    "title": "Warehouses",
+    "overview": "Overview",
+    "warehouse_details": "Warehouse Details",
+    "stock_by_location": "Stock by Location",
+    "add_warehouse": "Add Warehouse",
+    "edit_warehouse": "Edit Warehouse",
+    "delete_warehouse": "Delete Warehouse",
+    "warehouse_code": "Warehouse Code",
+    "warehouse_name": "Warehouse Name",
+    "location": "Location",
+    "address": "Address",
+    "manager": "Manager",
+    "accountant": "Accountant",
+    "warehouse_keeper": "Warehouse Keeper",
+    "code": "Code",
+    "name": "Name",
+    "update": "Update",
+    "product_id": "Product ID",
+    "product_name": "Product Name",
+    "category": "Category",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "delete_confirmation": "Are you sure you want to delete this warehouse?"
   },
   
   "products": {

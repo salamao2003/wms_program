@@ -59,6 +59,7 @@ abstract class AppLocalizations {
   String get dashboard;
   String get products;
   String get categories;
+  String get warehouses;
   String get stockIn;
   String get stockOut;
   String get inventoryCount;
@@ -70,6 +71,24 @@ abstract class AppLocalizations {
   String get invitations;
   String get settings;
   String get logout;
+
+  // Warehouses
+  String get warehousesTitle;
+  String get overview;
+  String get warehouseDetails;
+  String get stockByLocation;
+  String get addWarehouse;
+  String get editWarehouse;
+  String get deleteWarehouse;
+  String get warehouseCode;
+  String get warehouseName;
+  String get location;
+  String get address;
+  String get manager;
+  String get accountant;
+  String get warehouseKeeper;
+  String get quantity;
+  String get unit;
 
   // Products
   String get productsTitle;
