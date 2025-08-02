@@ -15,8 +15,19 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
   
   final WarehouseLogic _warehouseLogic = WarehouseLogic();
   List<Warehouse> _warehouses = [];
-  List<StockOverview> _stockOverview = [];
   Map<String, List<WarehouseStock>> _warehouseStocks = {};
+  
+  // New Enhanced Overview Data
+  List<WarehouseOverviewData> _enhancedOverviewData = [];
+  List<WarehouseColumn> _warehouseColumns = [];
+  Map<String, dynamic> _overviewStats = {};
+  
+  // Search and Filter Options
+  String _searchQuery = '';
+  String _sortBy = 'name';
+  bool _sortAscending = true;
+  bool _showEmptyStock = true;
+  
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -34,7 +45,20 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       });
       
       final warehouses = await _warehouseLogic.getWarehouses();
-      final stockOverview = await _warehouseLogic.getAllWarehousesStock();
+      
+      // Load enhanced overview data
+      final enhancedOverviewData = await _warehouseLogic.getFilteredOverviewData(
+        searchQuery: _searchQuery,
+        sortBy: _sortBy,
+        ascending: _sortAscending,
+        showEmptyStock: _showEmptyStock,
+      );
+      
+      // Load warehouse columns for dynamic table
+      final warehouseColumns = await _warehouseLogic.getWarehouseColumns();
+      
+      // Load overview statistics
+      final overviewStats = await _warehouseLogic.getWarehouseOverviewStats();
       
       // Load individual warehouse stocks
       final Map<String, List<WarehouseStock>> warehouseStocks = {};
@@ -47,7 +71,9 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       
       setState(() {
         _warehouses = warehouses;
-        _stockOverview = stockOverview;
+        _enhancedOverviewData = enhancedOverviewData;
+        _warehouseColumns = warehouseColumns;
+        _overviewStats = overviewStats;
         _warehouseStocks = warehouseStocks;
         _isLoading = false;
       });
@@ -180,6 +206,8 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                               setState(() {
                                 _isOverviewSelected = true;
                               });
+                              // إعادة تحميل البيانات للحصول على الفئات المحدثة
+                              _refreshOverviewData();
                             },
                           ),
                           const Divider(),
@@ -287,17 +315,98 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              localizations?.stockByLocation ?? 'Stock by Location',
-                              style: Theme.of(context).textTheme.titleLarge,
+                            // Header with title and controls
+                            Row(
+                              children: [
+                                Text(
+                                  _isOverviewSelected 
+                                    ? 'Warehouse Overview'
+                                    : (localizations?.stockByLocation ?? 'Stock by Location'),
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const Spacer(),
+                                if (_isOverviewSelected) ...[
+                                  // Search field for overview
+                                  SizedBox(
+                                    width: 250,
+                                    child: TextField(
+                                      decoration: InputDecoration(
+                                        hintText: 'Search products...',
+                                        prefixIcon: const Icon(Icons.search),
+                                        border: const OutlineInputBorder(),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _searchQuery = value;
+                                        });
+                                        _refreshOverviewData();
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Sort dropdown
+                                  DropdownButton<String>(
+                                    value: _sortBy,
+                                    items: [
+                                      DropdownMenuItem(value: 'name', child: Text(localizations?.name ?? 'Name')),
+                                      DropdownMenuItem(value: 'category', child: Text(localizations?.category ?? 'Category')),
+                                      DropdownMenuItem(value: 'total', child: Text(localizations?.total ?? 'Total')),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() {
+                                          _sortBy = value;
+                                        });
+                                        _refreshOverviewData();
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Sort direction button
+                                  IconButton(
+                                    icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward),
+                                    onPressed: () {
+                                      setState(() {
+                                        _sortAscending = !_sortAscending;
+                                      });
+                                      _refreshOverviewData();
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Filter empty stock
+                                 
+                                  const SizedBox(width: 8),
+                                  // Export button
+                                  ElevatedButton.icon(
+                                    onPressed: _exportToCSV,
+                                    icon: const Icon(Icons.download),
+                                    label: Text(localizations?.export ?? 'Export'),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 16),
+                            // Statistics Row for Overview
+                            if (_isOverviewSelected && _overviewStats.isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  _buildStatCard(localizations?.totalProducts ?? 'Total Products', _overviewStats['totalProducts']?.toString() ?? '0', Icons.inventory, Colors.blue),
+                                  const SizedBox(width: 16),
+                                  _buildStatCard('Total Warehouses', _overviewStats['totalWarehouses']?.toString() ?? '0', Icons.warehouse, Colors.green),
+                                  const SizedBox(width: 16),
+                                  _buildStatCard('Total Stock', _overviewStats['totalStock']?.toString() ?? '0', Icons.storage, Colors.orange),
+                                  const SizedBox(width: 16),            
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             Expanded(
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: SingleChildScrollView(
                                   child: _isOverviewSelected 
-                                    ? _buildOverviewDataTable(localizations)
+                                    ? _buildEnhancedOverviewDataTable(localizations)
                                     : _buildWarehouseDataTable(localizations),
                                 ),
                               ),
@@ -314,6 +423,104 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
         ),
       ),
     );
+  }
+
+  // Helper functions for new features
+  Widget _buildStatCard(String title, String value, IconData icon, [Color? color]) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: (color ?? Theme.of(context).primaryColor).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: (color ?? Theme.of(context).primaryColor).withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color ?? Theme.of(context).primaryColor, size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: color ?? Theme.of(context).primaryColor,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refreshOverviewData() async {
+    try {
+      // إعادة تحميل البيانات الكاملة للحصول على الفئات المحدثة
+      final enhancedOverviewData = await _warehouseLogic.getFilteredOverviewData(
+        searchQuery: _searchQuery,
+        sortBy: _sortBy,
+        ascending: _sortAscending,
+        showEmptyStock: _showEmptyStock,
+      );
+      
+      // إعادة تحميل الإحصائيات أيضاً
+      final overviewStats = await _warehouseLogic.getWarehouseOverviewStats();
+      
+      setState(() {
+        _enhancedOverviewData = enhancedOverviewData;
+        _overviewStats = overviewStats;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error refreshing data: $e')),
+      );
+    }
+  }
+
+  Future<void> _exportToCSV() async {
+    try {
+      final csvData = _warehouseLogic.convertToCSV(_enhancedOverviewData, _warehouseColumns);
+      
+      // في بيئة الويب، يمكن استخدام download
+      // في بيئة المحمول، يمكن حفظ الملف أو مشاركته
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('CSV Data Generated Successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // TODO: تنفيذ حفظ الملف أو مشاركته
+      print('CSV Data Generated: ${csvData.length} characters');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting data: $e')),
+      );
+    }
+  }
+
+  // دالة لإعطاء لون مميز لكل فئة
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      default:
+        return Colors.teal;
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -342,50 +549,242 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
     );
   }
 
-  Widget _buildOverviewDataTable(AppLocalizations? localizations) {
-    if (_stockOverview.isEmpty) {
+  Widget _buildEnhancedOverviewDataTable(AppLocalizations? localizations) {
+    if (_enhancedOverviewData.isEmpty) {
       return Center(
-        child: Text(
-          'No stock data available',
-          style: Theme.of(context).textTheme.bodyLarge,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No stock data available',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            if (_searchQuery.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Search for: "$_searchQuery"',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
     
-    return DataTable(
-      columnSpacing: 20,
-      columns: [
-        DataColumn(label: Text(localizations?.productId ?? 'Product ID')),
-        DataColumn(label: Text(localizations?.productName ?? 'Product Name')),
-        DataColumn(label: Text(localizations?.category ?? 'Category')),
-        DataColumn(label: Text(localizations?.quantity ?? 'Total Quantity')),
-        DataColumn(label: Text(localizations?.warehouses ?? 'Warehouses')),
-      ],
-      rows: _stockOverview.map((item) {
-        // Calculate total quantity across all warehouses
-        int totalQuantity = 0;
-        for (var warehouseStock in item.warehouseStocks.values) {
-          totalQuantity += warehouseStock.quantity;
-        }
-        
-        return DataRow(
-          cells: [
-            DataCell(Text(item.productId)),
+    // Dynamic columns: Product info + Warehouse columns + Total
+    final List<DataColumn> columns = [
+      DataColumn(
+        label: Text(localizations?.productId ?? 'Product ID'),
+        tooltip: 'Product ID',
+      ),
+      DataColumn(
+        label: Text(localizations?.productName ?? 'Product Name'),
+        tooltip: 'Product Name',
+      ),
+      DataColumn(
+        label: Text(localizations?.category ?? 'Category'),
+        tooltip: 'Product Category',
+      ),
+    ];
+    
+    // Add dynamic warehouse columns (Quantity + Unit for each warehouse)
+    for (final warehouseColumn in _warehouseColumns) {
+      // Quantity column for warehouse
+      columns.add(DataColumn(
+        label: SizedBox(
+          width: 80,
+          child: Text(
+            warehouseColumn.warehouseName,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        tooltip: '${warehouseColumn.warehouseName} - Quantity',
+        numeric: true,
+      ));
+      
+      // Unit column for warehouse
+      columns.add(DataColumn(
+        label: SizedBox(
+          width: 60,
+          child: Text(
+            'Unit',
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        tooltip: '${warehouseColumn.warehouseName} - Unit',
+      ));
+    }
+    
+    // Add total column
+    columns.add(DataColumn(
+      label: Text(localizations?.total ?? 'Total'),
+      tooltip: 'Total Quantity Across All Warehouses',
+      numeric: true,
+    ));
+    
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DataTable(
+        columnSpacing: 16,
+        horizontalMargin: 16,
+        headingRowColor: MaterialStateProperty.all(
+          Theme.of(context).primaryColor.withOpacity(0.1),
+        ),
+        columns: columns,
+        rows: _enhancedOverviewData.map((item) {
+          final List<DataCell> cells = [
+            // Product ID cell
             DataCell(
               SizedBox(
-                width: 120,
+                width: 100,
                 child: Text(
-                  item.productName,
+                  item.productId,
                   overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontFamily: 'monospace',
+                  ),
                 ),
               ),
             ),
-            DataCell(Text(item.categoryName)),
-            DataCell(Text(totalQuantity.toString())),
-            DataCell(Text(item.warehouseStocks.length.toString())),
-          ],
-        );
-      }).toList(),
+            // Product Name cell
+            DataCell(
+              SizedBox(
+                width: 150,
+                child: Tooltip(
+                  message: item.productName,
+                  child: Text(
+                    item.productName,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Category cell
+            DataCell(
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getCategoryColor(item.categoryName).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _getCategoryColor(item.categoryName).withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  item.categoryName,
+                  style: TextStyle(
+                    color: _getCategoryColor(item.categoryName),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ];
+          
+          // Add warehouse stock cells (Quantity + Unit for each warehouse)
+          for (final warehouseColumn in _warehouseColumns) {
+            final stock = item.getStockForWarehouse(warehouseColumn.warehouseId);
+            final quantity = stock?.quantity ?? 0;
+            final unit = stock?.unit ?? 'PC';
+            
+            // Quantity cell
+            cells.add(DataCell(
+              Container(
+                width: 80,
+                alignment: Alignment.center,
+                child: Text(
+                  quantity.toString(),
+                  style: TextStyle(
+                    color: quantity > 0 ? Colors.green[700] : Colors.grey[500],
+                    fontWeight: quantity > 0 ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ));
+            
+            // Unit cell
+            cells.add(DataCell(
+              Container(
+                width: 60,
+                alignment: Alignment.center,
+                child: Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: quantity > 0 ? Colors.blue[600] : Colors.grey[400],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ));
+          }
+          
+          // Add total cell
+          cells.add(DataCell(
+            Container(
+              alignment: Alignment.center,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: item.totalQuantity > 0 
+                    ? Colors.blue[100] 
+                    : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  item.totalQuantity.toString(),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: item.totalQuantity > 0 
+                      ? Colors.blue[800] 
+                      : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+          ));
+          
+          return DataRow(
+            cells: cells,
+            color: MaterialStateProperty.resolveWith<Color?>(
+              (Set<MaterialState> states) {
+                if (!item.hasStock) {
+                  return Colors.red[100];
+                }
+                return null;
+              },
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -405,34 +804,185 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       );
     }
     
-    return DataTable(
-      columnSpacing: 20,
-      columns: [
-        DataColumn(label: Text(localizations?.productId ?? 'Product ID')),
-        DataColumn(label: Text(localizations?.productName ?? 'Product Name')),
-        DataColumn(label: Text(localizations?.category ?? 'Category')),
-        DataColumn(label: Text(localizations?.quantity ?? 'Quantity')),
-        DataColumn(label: Text(localizations?.unit ?? 'Unit')),
-      ],
-      rows: stocks.map((stock) {
-        return DataRow(
-          cells: [
-            DataCell(Text(stock.productId)),
-            DataCell(
-              SizedBox(
-                width: 120,
-                child: Text(
-                  stock.productName ?? '',
-                  overflow: TextOverflow.ellipsis,
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color.fromARGB(255, 43, 43, 43)!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DataTable(
+        columnSpacing: 20,
+        horizontalMargin: 16,
+        headingRowColor: MaterialStateProperty.all(
+          Theme.of(context).primaryColor.withOpacity(0.1),
+        ),
+        columns: [
+          DataColumn(
+            label: Row(
+              children: [
+                Icon(Icons.qr_code, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(localizations?.productId ?? 'Product ID'),
+              ],
+            ),
+          ),
+          DataColumn(
+            label: Row(
+              children: [
+                Icon(Icons.inventory_2, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(localizations?.productName ?? 'Product Name'),
+              ],
+            ),
+          ),
+          DataColumn(
+            label: Row(
+              children: [
+                Icon(Icons.category, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(localizations?.category ?? 'Category'),
+              ],
+            ),
+          ),
+          DataColumn(
+            label: Row(
+              children: [
+                Icon(Icons.numbers, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(localizations?.quantity ?? 'Quantity'),
+              ],
+            ),
+            numeric: true,
+          ),
+          DataColumn(
+            label: Row(
+              children: [
+                Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(localizations?.unit ?? 'Unit'),
+              ],
+            ),
+          ),
+        ],
+        rows: stocks.map((stock) {
+          final quantity = stock.currentQuantity;
+          
+            return DataRow(
+            color: MaterialStateProperty.resolveWith<Color?>(
+              (Set<MaterialState> states) {
+              return const Color.fromARGB(255, 32, 32, 32);
+              },
+            ),
+            cells: [
+              DataCell(
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    stock.productId,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                  ),
                 ),
               ),
-            ),
-            DataCell(Text(stock.categoryName ?? '')),
-            DataCell(Text(stock.currentQuantity.toString())),
-            DataCell(Text(stock.unit)),
-          ],
-        );
-      }).toList(),
+              DataCell(
+                SizedBox(
+                  width: 200,
+                  child: Tooltip(
+                    message: stock.productName ?? '',
+                    child: Text(
+                      stock.productName ?? '',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getCategoryColor(stock.categoryName ?? 'General').withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _getCategoryColor(stock.categoryName ?? 'General').withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    stock.categoryName ?? 'General',
+                    style: TextStyle(
+                      color: _getCategoryColor(stock.categoryName ?? 'General'),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: quantity == 0 
+                          ? Colors.red 
+                          : quantity < 10 
+                            ? Colors.orange 
+                            : quantity < 50 
+                              ? Colors.yellow[700] 
+                              : Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      quantity.toString(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: quantity == 0 
+                          ? Colors.red[700] 
+                          : quantity < 10 
+                            ? Colors.orange[700] 
+                            : quantity < 50 
+                              ? Colors.yellow[800] 
+                              : Colors.green[700],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              DataCell(
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    stock.unit,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 
