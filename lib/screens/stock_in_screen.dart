@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'dart:async';
 import '../backend/stock_in_logic.dart';
+import '../l10n/app_localizations.dart';
 
 class StockInScreen extends StatefulWidget {
   const StockInScreen({super.key});
@@ -11,341 +11,126 @@ class StockInScreen extends StatefulWidget {
 }
 
 class _StockInScreenState extends State<StockInScreen> {
-  // Backend services
-  final StockInLogic _stockInLogic = StockInLogic();
-  
-  // Data lists
-  List<StockInRecord> _stockInRecords = [];
-  List<StockInRecord> _filteredRecords = [];
-  
-  // Controllers for search and filters
+  final StockInController _stockInController = StockInController();
   final TextEditingController _searchController = TextEditingController();
   
-  // Filter variables
-  String? _selectedSupplierId;
-  DateTime? _startDate;
-  DateTime? _endDate;
+  List<StockIn> _stockInRecords = [];
+  Map<String, int> _stats = {};
   
-  // State variables
   bool _isLoading = true;
   String? _errorMessage;
+  
+  // للفلترة
+  String _searchTerm = '';
+  String? _selectedSupplierFilter;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadInitialData();
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  // تحميل جميع البيانات
-  Future<void> _loadData() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-
-      final records = await _stockInLogic.getStockInRecords();
-
-      if (mounted) {
+      // Load warehouses and initial data
+      await _stockInController.loadWarehouses();
+      final success = await _stockInController.loadStockInRecords();
+      
+      if (success) {
         setState(() {
-          _stockInRecords = records;
-          _filteredRecords = records; // Initialize filtered records
+          _stockInRecords = _stockInController.stockInRecords;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = _stockInController.error;
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error loading data: ${e.toString()}';
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  // تطبيق الفلاتر والبحث
-  void _applyFilters() {
-    setState(() {
-      _filteredRecords = _stockInRecords.where((record) {
-        // Search filter
-        final searchQuery = _searchController.text.toLowerCase();
-        final matchesSearch = searchQuery.isEmpty ||
-            record.recordId.toLowerCase().contains(searchQuery) ||
-            record.additionNumber.toLowerCase().contains(searchQuery) ||
-            record.productId.toLowerCase().contains(searchQuery) ||
-            (record.productName?.toLowerCase() ?? '').contains(searchQuery) ||
-            (record.supplierName?.toLowerCase() ?? '').contains(searchQuery);
-
-        // Supplier filter
-        final matchesSupplier = _selectedSupplierId == null ||
-            record.supplierId == _selectedSupplierId;
-
-        // Date range filter
-        final matchesDateRange = (_startDate == null || _endDate == null) ||
-            (record.createdAt != null &&
-                record.createdAt!.isAfter(_startDate!) &&
-                record.createdAt!.isBefore(_endDate!.add(const Duration(days: 1))));
-
-        return matchesSearch && matchesSupplier && matchesDateRange;
-      }).toList();
-    });
-  }
-
-  // مسح الفلاتر
-  void _clearFilters() {
-    setState(() {
-      _searchController.clear();
-      _selectedSupplierId = null;
-      _startDate = null;
-      _endDate = null;
-      _filteredRecords = _stockInRecords;
-    });
-  }
-
-  // الحصول على قائمة الموردين الفريدة للفلتر
-  List<DropdownMenuItem<String>> _getUniqueSuppliers() {
-    final suppliers = <String, String>{};
-    for (final record in _stockInRecords) {
-      if (record.supplierId != null && record.supplierName != null) {
-        suppliers[record.supplierId!] = record.supplierName!;
-      }
-    }
-    
-    final items = <DropdownMenuItem<String>>[
-      const DropdownMenuItem<String>(
-        value: null,
-        child: Text('All Suppliers'),
-      ),
-    ];
-    
-    suppliers.forEach((id, name) {
-      items.add(DropdownMenuItem<String>(
-        value: id,
-        child: Text(name),
-      ));
-    });
-    
-    return items;
-  }
-
-  // اختيار نطاق التواريخ
-  Future<void> _selectDateRange() async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(1900), // تاريخ بعيد في الماضي
-      lastDate: DateTime(2100),  // تاريخ بعيد في المستقبل
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
-    );
-
-    if (picked != null) {
       setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
+        _errorMessage = e.toString();
+        _isLoading = false;
       });
-      _applyFilters();
     }
   }
 
-  // مزامنة مخزون المخازن مع سجلات Stock In
-  Future<void> _syncWarehouseStock() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sync Warehouse Stock'),
-        content: const Text(
-          'This will sync all warehouse stock data with Stock In records. '
-          'This process will update warehouse inventory based on all Stock In entries. '
-          'Are you sure you want to continue?'
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Sync'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        setState(() => _isLoading = true);
-        
-        // عرض رسالة المعالجة
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text('Syncing warehouse stock...'),
-              ],
-            ),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
-
-        await _stockInLogic.syncExistingStockInRecords();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Warehouse stock synced successfully!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Error syncing warehouse stock: ${e.toString()}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-      }
-    }
-  }
-
-  // تحميل الفاتورة الإلكترونية
-  void _downloadRecord(StockInRecord record) async {
-    // التحقق من وجود فاتورة إلكترونية
-    if (record.electronicInvoiceUrl == null || record.electronicInvoiceUrl!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لا توجد فاتورة إلكترونية لهذا السجل'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
+  Future<void> _searchStockInRecords() async {
     try {
-      // عرض رسالة تحميل
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text('جاري فتح الفاتورة: ${record.invoiceFileName ?? 'Invoice.pdf'}'),
-            ],
-          ),
-          backgroundColor: Colors.blue,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // فتح الفاتورة باستخدام url_launcher
-      final bool success = await _stockInLogic.downloadElectronicInvoice(
-        invoiceUrl: record.electronicInvoiceUrl!,
-        fileName: record.invoiceFileName ?? 'Invoice.pdf',
+      final success = await _stockInController.loadStockInRecords(
+        searchTerm: _searchTerm.isNotEmpty ? _searchTerm : null,
+        supplierId: _selectedSupplierFilter,
+        startDate: _startDate,
+        endDate: _endDate,
       );
 
       if (success) {
-        // عرض رسالة نجاح
+        setState(() {
+          _stockInRecords = _stockInController.stockInRecords;
+        });
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم فتح الفاتورة: ${record.invoiceFileName ?? 'Invoice.pdf'}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+          SnackBar(content: Text('فشل البحث: ${_stockInController.error}')),
         );
       }
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('فشل في فتح الفاتورة: ${e.toString()}'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      // نسخ الرابط للحافظة كبديل
-                      Clipboard.setData(ClipboardData(text: record.electronicInvoiceUrl!));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('تم نسخ رابط الفاتورة للحافظة'),
-                          backgroundColor: Colors.blue,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    child: const Text('نسخ الرابط', style: TextStyle(color: Colors.white)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
+        SnackBar(content: Text('فشل البحث: ${e.toString()}')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stock In'),
+        title: Text(localizations?.productsTitle ?? 'Stock In Management'),
         automaticallyImplyLeading: false,
         actions: [
-          // Sync Button
+          // إحصائيات سريعة
+          if (_stats.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.inventory, size: 16, color: Colors.blue[700]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_stats['total'] ?? 0}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           ElevatedButton.icon(
-            onPressed: _isLoading ? null : _syncWarehouseStock,
-            icon: const Icon(Icons.sync),
-            label: const Text('Sync Stock'),
+            onPressed: () => _showStockInDialog(),
+            icon: const Icon(Icons.add),
+            label: Text(localizations?.addProduct ?? 'Record Stock In'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
+              backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _isLoading ? null : () => _showStockInDialog(),
-            icon: const Icon(Icons.add),
-            label: const Text('Record Stock In'),
           ),
           const SizedBox(width: 16),
         ],
@@ -353,252 +138,229 @@ class _StockInScreenState extends State<StockInScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _errorMessage!,
-                        style: TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadData,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : _buildContent(),
+              ? _buildErrorWidget()
+              : _buildMainContent(),
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'خطأ في تحميل البيانات',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.red),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _loadInitialData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('إعادة المحاولة'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Search and Filters Section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Search Bar
-                  TextField(
+          // شريط البحث والفلاتر
+          _buildSearchAndFilters(),
+          const SizedBox(height: 16),
+          
+          // جدول stock in records
+          Expanded(
+            child: _stockInRecords.isEmpty ? _buildEmptyState() : _buildStockInTable(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters() {
+    final localizations = AppLocalizations.of(context);
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // الصف الأول: حقل البحث
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search by Record ID, Product, or Supplier...',
+                      labelText: localizations?.searchText ?? 'البحث...',
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _applyFilters();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      border: const OutlineInputBorder(),
+                      hintText: 'ابحث برقم الإضافة، رقم السجل، أو اسم المنتج...',
                     ),
-                    onChanged: (value) => _applyFilters(),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchTerm = value;
+                      });
+                    },
                   ),
-                  const SizedBox(height: 16),
-                  // Filters Row
-                  Row(
-                    children: [
-                      // Supplier Filter
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: InputDecoration(
-                            labelText: 'Filter by Supplier',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          value: _selectedSupplierId,
-                          items: _getUniqueSuppliers(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedSupplierId = value;
-                            });
-                            _applyFilters();
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Date Range Filter
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _selectDateRange(),
-                                icon: const Icon(Icons.date_range),
-                                label: Text(
-                                  _startDate != null && _endDate != null
-                                      ? '${_startDate!.day}/${_startDate!.month} - ${_endDate!.day}/${_endDate!.month}'
-                                      : 'Select Date Range',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            if (_startDate != null || _endDate != null)
-                              IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  setState(() {
-                                    _startDate = null;
-                                    _endDate = null;
-                                  });
-                                  _applyFilters();
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Clear All Filters Button
-                      ElevatedButton.icon(
-                        onPressed: _clearFilters,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Clear All'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Stock In Records Table
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Stock In Records',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: _filteredRecords.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.inbox,
-                                    size: 64,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _stockInRecords.isEmpty 
-                                        ? 'No stock in records found'
-                                        : 'No records match your filters',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : SingleChildScrollView(
-                              child: DataTable(
-                                columns: const [
-                                  DataColumn(label: Text('Addition NO')),
-                                  DataColumn(label: Text('Record ID')),
-                                  DataColumn(label: Text('Date')),
-                                  DataColumn(label: Text('Product Name')),
-                                  DataColumn(label: Text('Quantity')),
-                                  DataColumn(label: Text('Unit')),
-                                  DataColumn(label: Text('Supplier')),
-                                  DataColumn(label: Text('Supplier Tax NO')),
-                                  DataColumn(label: Text('Warehouse Name')),
-                                  DataColumn(label: Text('Notes')),
-                                  DataColumn(label: Text('Actions')),
-                                ],
-                                rows: _filteredRecords.map((record) {
-                                  return DataRow(
-                                    cells: [
-                                      DataCell(Text(record.additionNumber)),
-                                      DataCell(Text(record.recordId)),
-                                      DataCell(Text(
-                                        (record.invoiceDate ?? record.createdAt) != null
-                                            ? '${(record.invoiceDate ?? record.createdAt)!.day}/${(record.invoiceDate ?? record.createdAt)!.month}/${(record.invoiceDate ?? record.createdAt)!.year}'
-                                            : 'N/A'
-                                      )),
-                                      DataCell(Text(record.productName ?? 'N/A')),
-                                      DataCell(Text('${record.quantity}')),
-                                      DataCell(Text(record.unit)),
-                                      DataCell(Text(record.supplierName ?? 'N/A')),
-                                      DataCell(Text(record.supplierTaxNumber ?? 'N/A')),
-                                      DataCell(Text(record.warehouseName ?? record.warehouseCode ?? 'N/A')),
-                                      DataCell(Text(record.notes ?? 'N/A')),
-                                      DataCell(
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(Icons.visibility, color: Colors.blue),
-                                              onPressed: () => _viewRecord(record),
-                                              tooltip: 'View',
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.edit, color: Colors.orange),
-                                              onPressed: () => _showStockInDialog(record: record),
-                                              tooltip: 'Edit',
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(Icons.delete, color: Colors.red),
-                                              onPressed: () => _deleteRecord(record),
-                                              tooltip: 'Delete',
-                                            ),
-                                            IconButton(
-                                              icon: Icon(
-                                                record.electronicInvoiceUrl != null && record.electronicInvoiceUrl!.isNotEmpty
-                                                    ? Icons.file_download
-                                                    : Icons.download_outlined,
-                                                color: record.electronicInvoiceUrl != null && record.electronicInvoiceUrl!.isNotEmpty
-                                                    ? Colors.green
-                                                    : Colors.grey,
-                                              ),
-                                              onPressed: () => _downloadRecord(record),
-                                              tooltip: record.electronicInvoiceUrl != null && record.electronicInvoiceUrl!.isNotEmpty
-                                                  ? 'Download Invoice'
-                                                  : 'No Invoice Available',
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                    ),
-                  ],
                 ),
-              ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _searchStockInRecords,
+                  icon: const Icon(Icons.search),
+                  label: Text(localizations?.searchText ?? 'بحث'),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // الصف الثاني: فلاتر إضافية
+            Row(
+              children: [
+                // فلتر المورد
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'فلتر بالمورد',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.business),
+                    ),
+                    value: _selectedSupplierFilter,
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('جميع الموردين'),
+                      ),
+                      // سيتم ملؤها من بيانات الموردين
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedSupplierFilter = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // فلتر التاريخ من
+                Expanded(
+                  child: TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'من تاريخ',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    readOnly: true,
+                    controller: TextEditingController(
+                      text: _startDate != null 
+                          ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
+                          : '',
+                    ),
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _startDate ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _startDate = date;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // فلتر التاريخ إلى
+                Expanded(
+                  child: TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'إلى تاريخ',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    readOnly: true,
+                    controller: TextEditingController(
+                      text: _endDate != null 
+                          ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
+                          : '',
+                    ),
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _endDate ?? DateTime.now(),
+                        firstDate: _startDate ?? DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _endDate = date;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // زر مسح الفلاتر
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _searchTerm = '';
+                      _selectedSupplierFilter = null;
+                      _startDate = null;
+                      _endDate = null;
+                      _searchController.clear();
+                    });
+                    _loadInitialData();
+                  },
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'مسح الفلاتر',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inventory_outlined, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text(
+            'لا توجد سجلات إدخال مخزون',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          const Text('ابدأ بتسجيل أول عملية إدخال مخزون'),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => _showStockInDialog(),
+            icon: const Icon(Icons.add),
+            label: const Text('تسجيل أول عملية إدخال'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -606,41 +368,380 @@ class _StockInScreenState extends State<StockInScreen> {
     );
   }
 
-  // حذف سجل مع تأكيد
-  Future<void> _deleteRecord(StockInRecord record) async {
-    final confirm = await showDialog<bool>(
+  Widget _buildStockInTable() {
+    return Card(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SingleChildScrollView(
+          child: DataTable(
+            columnSpacing: 20,
+            columns: const [
+              DataColumn(
+                label: Text(
+                  'رقم الإضافة',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'رقم السجل',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'التاريخ',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'رقم المنتج',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'اسم المنتج',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'الكمية',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'الوحدة',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'المورد',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'المخزن',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'ملاحظات',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'الإجراءات',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+            rows: _buildTableRows(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<DataRow> _buildTableRows() {
+    List<DataRow> rows = [];
+    
+    for (var stockIn in _stockInRecords) {
+      // If there are multiple products, create a row for each product
+      if (stockIn.products.isNotEmpty) {
+        for (int i = 0; i < stockIn.products.length; i++) {
+          final product = stockIn.products[i];
+          rows.add(
+            DataRow(
+              cells: [
+                // Addition Number - show only on first row for this record
+                DataCell(
+                  Text(
+                    i == 0 ? stockIn.additionNumber : '',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Record ID - show only on first row for this record
+                DataCell(
+                  Text(
+                    i == 0 ? stockIn.recordId : '',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Date - show only on first row for this record
+                DataCell(
+                  Text(
+                    i == 0 ? '${stockIn.date.day}/${stockIn.date.month}/${stockIn.date.year}' : '',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Product ID
+                DataCell(
+                  Text(
+                    product.productId,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Product Name
+                DataCell(
+                  Text(
+                    product.productName,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Quantity
+                DataCell(
+                  Text(
+                    product.quantity.toString(),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Unit
+                DataCell(
+                  Text(
+                    product.unit,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Supplier - show only on first row for this record
+                DataCell(
+                  Text(
+                    i == 0 ? stockIn.supplierName : '',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Warehouse - show only on first row for this record
+                DataCell(
+                  Text(
+                    i == 0 ? stockIn.warehouseName : '',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                // Notes - show only on first row for this record
+                DataCell(
+                  Text(
+                    i == 0 ? (stockIn.notes ?? '-') : '',
+                    style: const TextStyle(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // Actions - show only on first row for this record
+                DataCell(
+                  i == 0 ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Edit button
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                        onPressed: () => _showStockInDialog(stockIn: stockIn),
+                        tooltip: 'تعديل',
+                      ),
+                      // Delete button
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                        onPressed: () => _confirmDeleteStockIn(stockIn),
+                        tooltip: 'حذف',
+                      ),
+                      // Download button
+                      if (stockIn.invoiceFilePath != null)
+                        IconButton(
+                          icon: const Icon(Icons.download, color: Colors.green, size: 18),
+                          onPressed: () => _downloadInvoice(stockIn),
+                          tooltip: 'تحميل الفاتورة',
+                        ),
+                      // Print button
+                      IconButton(
+                        icon: const Icon(Icons.print, color: Colors.purple, size: 18),
+                        onPressed: () => _printStockIn(stockIn),
+                        tooltip: 'طباعة',
+                      ),
+                    ],
+                  ) : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        // If no products, show a row with empty product info
+        rows.add(
+          DataRow(
+            cells: [
+              DataCell(Text(stockIn.additionNumber, style: const TextStyle(fontSize: 12))),
+              DataCell(Text(stockIn.recordId, style: const TextStyle(fontSize: 12))),
+              DataCell(Text('${stockIn.date.day}/${stockIn.date.month}/${stockIn.date.year}', style: const TextStyle(fontSize: 12))),
+              const DataCell(Text('-', style: TextStyle(fontSize: 12))), // Product ID
+              const DataCell(Text('-', style: TextStyle(fontSize: 12))), // Product Name
+              const DataCell(Text('-', style: TextStyle(fontSize: 12))), // Quantity
+              const DataCell(Text('-', style: TextStyle(fontSize: 12))), // Unit
+              DataCell(Text(stockIn.supplierName, style: const TextStyle(fontSize: 12))),
+              DataCell(Text(stockIn.warehouseName, style: const TextStyle(fontSize: 12))),
+              DataCell(Text(stockIn.notes ?? '-', style: const TextStyle(fontSize: 12))),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                      onPressed: () => _showStockInDialog(stockIn: stockIn),
+                      tooltip: 'تعديل',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                      onPressed: () => _confirmDeleteStockIn(stockIn),
+                      tooltip: 'حذف',
+                    ),
+                    if (stockIn.invoiceFilePath != null)
+                      IconButton(
+                        icon: const Icon(Icons.download, color: Colors.green, size: 18),
+                        onPressed: () => _downloadInvoice(stockIn),
+                        tooltip: 'تحميل الفاتورة',
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.print, color: Colors.purple, size: 18),
+                      onPressed: () => _printStockIn(stockIn),
+                      tooltip: 'طباعة',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+    
+    return rows;
+  }
+
+  Future<void> _confirmDeleteStockIn(StockIn stockIn) async {
+    await _deleteStockIn(stockIn);
+  }
+
+  // ============== DIALOG METHODS ==============
+
+  Future<void> _showStockInDialog({StockIn? stockIn}) async {
+    await showDialog(
+      context: context,
+      builder: (context) => StockInFormDialog(
+        stockIn: stockIn,
+        stockInController: _stockInController,
+        onSuccess: () async {
+          // Force reload of data after successful save
+          await _loadInitialData();
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteStockIn(StockIn stockIn) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: Text('Are you sure you want to delete record ${record.recordId}?'),
+        title: const Text('حذف سجل إدخال المخزون'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('هل أنت متأكد من حذف سجل إدخال المخزون؟'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('رقم السجل: ${stockIn.recordId}'),
+                  Text('رقم الإضافة: ${stockIn.additionNumber}'),
+                  Text('المورد: ${stockIn.supplierName}'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'تحذير: لا يمكن التراجع عن هذا الإجراء!',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('حذف', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
 
-    if (confirm == true && record.id != null) {
+    if (confirmed == true && stockIn.id != null) {
       try {
-        await _stockInLogic.deleteStockInRecordWithStock(record.id!, record);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Record deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadData(); // إعادة تحميل البيانات
+        final success = await _stockInController.deleteStockInRecord(stockIn.id!);
+        if (success && mounted) {
+          setState(() {
+            _stockInRecords = _stockInController.stockInRecords;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم حذف السجل بنجاح')),
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('فشل في حذف السجل: ${_stockInController.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('خطأ: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _downloadInvoice(StockIn stockIn) async {
+    if (stockIn.invoiceFilePath == null) return;
+    
+    try {
+      final fileBytes = await _stockInController.downloadInvoiceFile(stockIn.invoiceFilePath!);
+      if (fileBytes != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحميل الفاتورة بنجاح')),
+        );
+        // هنا يمكن حفظ الملف أو فتحه
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error deleting record: ${e.toString()}'),
+            content: Text('فشل في تحميل الفاتورة: ${_stockInController.error}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -648,89 +749,32 @@ class _StockInScreenState extends State<StockInScreen> {
     }
   }
 
-  // عرض حوار إضافة/تعديل
-  void _showStockInDialog({StockInRecord? record}) {
-    showDialog(
-      context: context,
-      builder: (context) => StockInFormDialog(
-        record: record,
-        onSave: () {
-          Navigator.pop(context);
-          _loadData(); // إعادة تحميل البيانات بعد الحفظ
-        },
-      ),
+  Future<void> _printStockIn(StockIn stockIn) async {
+    // سيتم تطبيقها لاحقاً
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('وظيفة الطباعة ستتم إضافتها لاحقاً')),
     );
   }
 
-  // عرض تفاصيل السجل
-  void _viewRecord(StockInRecord record) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Stock In Record - ${record.recordId}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildDetailRow('Record ID:', record.recordId),
-            _buildDetailRow('Addition Number:', record.additionNumber),
-            _buildDetailRow('Product ID:', record.productId),
-            _buildDetailRow('Product Name:', record.productName),
-            _buildDetailRow('Quantity:', '${record.quantity} ${record.unit}'),
-            _buildDetailRow('Supplier:', record.supplierName),
-            _buildDetailRow('Tax Number:', record.supplierTaxNumber),
-            _buildDetailRow('Warehouse:', 
-              record.warehouseName != null 
-                ? '${record.warehouseName} (${record.warehouseCode ?? 'N/A'})'
-                : record.warehouseCode ?? 'N/A'),
-            _buildDetailRow('Notes:', record.notes),
-            _buildDetailRow('Date:', 
-              (record.invoiceDate ?? record.createdAt) != null 
-                ? '${(record.invoiceDate ?? record.createdAt)!.day}/${(record.invoiceDate ?? record.createdAt)!.month}/${(record.invoiceDate ?? record.createdAt)!.year}'
-                : 'N/A'),
-            if (record.electronicInvoiceUrl != null) ...[
-              _buildDetailRow('Invoice File:', record.invoiceFileName ?? 'Electronic Invoice'),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(child: Text(value ?? 'N/A')),
-        ],
-      ),
-    );
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }
 
-// حوار إضافة/تعديل سجل Stock In
+// ============== STOCK IN FORM DIALOG ==============
+
 class StockInFormDialog extends StatefulWidget {
-  final StockInRecord? record;
-  final VoidCallback onSave;
+  final StockIn? stockIn;
+  final StockInController stockInController;
+  final VoidCallback onSuccess;
 
   const StockInFormDialog({
     super.key,
-    this.record,
-    required this.onSave,
+    this.stockIn,
+    required this.stockInController,
+    required this.onSuccess,
   });
 
   @override
@@ -739,351 +783,438 @@ class StockInFormDialog extends StatefulWidget {
 
 class _StockInFormDialogState extends State<StockInFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  final StockInLogic _stockInLogic = StockInLogic();
-
-  // Controllers
-  final _productIdController = TextEditingController();
-  final _productNameController = TextEditingController();
-  final _supplierTaxController = TextEditingController();
-  final _supplierNameController = TextEditingController();
-  final _quantityController = TextEditingController();
-  final _notesController = TextEditingController();
-
-  // Selected values
-  String? _selectedProductId;
+  
+  // Controllers for products
+  final List<ProductRowController> _productControllers = [];
+  
+  // General information controllers
+  final TextEditingController _supplierSearchController = TextEditingController();
+  final TextEditingController _supplierTaxController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+  
+  // Search timers
+  Timer? _productSearchTimer;
+  Timer? _supplierSearchTimer;
+  
+  // State variables
+  List<SupplierSearchResult> _supplierSearchResults = [];
+  
   String? _selectedSupplierId;
   String? _selectedWarehouseId;
-  String? _selectedUnit = 'PC';
-  DateTime? _selectedDate;
-
-  // Invoice file state
-  String? _selectedInvoiceFilePath;
-  String? _selectedInvoiceFileName;
-  bool _isUploadingInvoice = false;
-
-  // State
+  DateTime _selectedDate = DateTime.now();
+  String? _invoiceFilePath;
+  String? _selectedFileName;
+  
   bool _isLoading = false;
-  bool _isLoadingData = true;
-
-  // Data lists
-  List<Map<String, dynamic>> _products = [];
-  List<Map<String, dynamic>> _filteredProducts = [];
-  List<Map<String, dynamic>> _suppliers = [];
-  List<Map<String, dynamic>> _filteredSuppliers = [];
-  List<Map<String, dynamic>> _warehouses = [];
-
+  
   @override
   void initState() {
     super.initState();
-    _loadFormData();
-    _initializeForm();
+    _initializeData();
   }
 
-  void _initializeForm() {
-    if (widget.record != null) {
-      _productIdController.text = widget.record!.productId;
-      _productNameController.text = widget.record!.productName ?? '';
-      _quantityController.text = widget.record!.quantity.toString();
-      _notesController.text = widget.record!.notes ?? '';
-      _selectedProductId = widget.record!.productId;
-      _selectedSupplierId = widget.record!.supplierId;
-      _selectedWarehouseId = widget.record!.warehouseId;
-      _selectedUnit = widget.record!.unit;
-      _selectedDate = widget.record!.invoiceDate ?? widget.record!.createdAt;
+  void _initializeData() {
+    // Add initial product row
+    _addProductRow();
+    
+    // If editing, populate fields
+    if (widget.stockIn != null) {
+      final stockIn = widget.stockIn!;
       
-      // تعبئة بيانات الفاتورة
-      if (widget.record!.electronicInvoiceUrl != null) {
-        _selectedInvoiceFilePath = widget.record!.electronicInvoiceUrl;
-        _selectedInvoiceFileName = widget.record!.invoiceFileName ?? 'Invoice.pdf';
+      // Populate products
+      _productControllers.clear();
+      for (var product in stockIn.products) {
+        final controller = ProductRowController();
+        controller.productIdController.text = product.productId;
+        controller.productNameController.text = product.productName;
+        controller.quantityController.text = product.quantity.toString();
+        controller.selectedUnit = product.unit;
+        _productControllers.add(controller);
       }
       
-      // تعبئة بيانات المورد
-      if (widget.record!.supplierTaxNumber != null) {
-        _supplierTaxController.text = widget.record!.supplierTaxNumber!;
-      }
-      if (widget.record!.supplierName != null) {
-        _supplierNameController.text = widget.record!.supplierName!;
-      }
-    } else {
-      // للسجل الجديد، استخدم التاريخ الحالي كافتراضي
-      _selectedDate = DateTime.now();
+      // Populate general info
+      _selectedSupplierId = stockIn.supplierId;
+      _supplierSearchController.text = stockIn.supplierName;
+      _supplierTaxController.text = ''; // سيتم ملؤه إذا كان متاحاً في البيانات
+      _selectedWarehouseId = stockIn.warehouseId;
+      _selectedDate = stockIn.date;
+      _notesController.text = stockIn.notes ?? '';
+      _invoiceFilePath = stockIn.invoiceFilePath;
     }
-  }
-
-  Future<void> _loadFormData() async {
-    try {
-      setState(() => _isLoadingData = true);
-
-      print('Loading form data...'); // للتصحيح
-
-      // تحميل البيانات الفعلية من قاعدة البيانات
-      final products = await _stockInLogic.getProducts();
-      final suppliers = await _stockInLogic.getSuppliers();
-      final warehouses = await _stockInLogic.getWarehouses();
-
-      print('Products loaded: ${products.length}'); // للتصحيح
-      print('Suppliers loaded: ${suppliers.length}'); // للتصحيح  
-      print('Warehouses loaded: ${warehouses.length}'); // للتصحيح
-
-      setState(() {
-        _products = products;
-        _filteredProducts = products;
-        _suppliers = suppliers;
-        _filteredSuppliers = suppliers;
-        _warehouses = warehouses;
-        _isLoadingData = false;
-      });
-    } catch (e) {
-      print('Error loading form data: $e'); // للتصحيح
-      setState(() => _isLoadingData = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading form data: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _productIdController.dispose();
-    _productNameController.dispose();
-    _supplierTaxController.dispose();
-    _supplierNameController.dispose();
-    _quantityController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  // فلترة المنتجات بناءً على النص المدخل
-  void _filterProducts(String query) {
-    print('Filtering products with query: $query'); // للتصحيح
-    print('Total products: ${_products.length}'); // للتصحيح
     
+    // Load warehouses
+    _loadWarehouses();
+  }
+
+  void _addProductRow() {
     setState(() {
-      if (query.isEmpty) {
-        _filteredProducts = _products;
-      } else {
-        _filteredProducts = _products.where((product) {
-          final productId = product['id']?.toString().toLowerCase() ?? '';
-          final productName = product['name']?.toString().toLowerCase() ?? '';
-          final searchQuery = query.toLowerCase();
-          final matches = productId.contains(searchQuery) || productName.contains(searchQuery);
-          return matches;
-        }).toList();
-      }
+      _productControllers.add(ProductRowController());
     });
-    
-    print('Filtered products: ${_filteredProducts.length}'); // للتصحيح
   }
 
-  // فلترة الموردين بناءً على النص المدخل
-  void _filterSuppliers(String query) {
-    print('Filtering suppliers with query: $query'); // للتصحيح
-    print('Total suppliers: ${_suppliers.length}'); // للتصحيح
-    
-    setState(() {
-      if (query.isEmpty) {
-        _filteredSuppliers = _suppliers;
-      } else {
-        _filteredSuppliers = _suppliers.where((supplier) {
-          final taxNumber = supplier['tax_number']?.toString().toLowerCase() ?? '';
-          final supplierName = supplier['name']?.toString().toLowerCase() ?? '';
-          final searchQuery = query.toLowerCase();
-          final matches = taxNumber.contains(searchQuery) || supplierName.contains(searchQuery);
-          return matches;
-        }).toList();
-      }
-    });
-    
-    print('Filtered suppliers: ${_filteredSuppliers.length}'); // للتصحيح
-  }
-
-  // البحث عن منتج بالـ ID وتعبئة الاسم
-  void _findProductById(String productId) {
-    print('Finding product by ID: $productId'); // للتصحيح
-    
-    final product = _products.firstWhere(
-      (p) => p['id'] == productId,
-      orElse: () => {},
-    );
-    
-    print('Found product: $product'); // للتصحيح
-    
-    if (product.isNotEmpty) {
+  void _removeProductRow(int index) {
+    if (_productControllers.length > 1) {
       setState(() {
-        _selectedProductId = product['id'];
-        _productNameController.text = product['name'] ?? '';
-      });
-    } else {
-      setState(() {
-        _selectedProductId = null;
-        _productNameController.text = '';
+        _productControllers[index].dispose();
+        _productControllers.removeAt(index);
       });
     }
   }
 
-  // البحث عن مورد بالرقم الضريبي وتعبئة الاسم
-  void _findSupplierByTaxNumber(String taxNumber) {
-    print('Finding supplier by tax number: $taxNumber'); // للتصحيح
-    
-    final supplier = _suppliers.firstWhere(
-      (s) => s['tax_number'] == taxNumber,
-      orElse: () => {},
-    );
-    
-    print('Found supplier: $supplier'); // للتصحيح
-    
-    if (supplier.isNotEmpty) {
-      setState(() {
-        _selectedSupplierId = supplier['id'];
-        _supplierNameController.text = supplier['name'] ?? '';
-      });
-    } else {
-      setState(() {
-        _selectedSupplierId = null;
-        _supplierNameController.text = '';
-      });
-    }
-  }
-
-  // اختيار التاريخ
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime(1900), // تاريخ بعيد في الماضي
-      lastDate: DateTime(2100),  // تاريخ بعيد في المستقبل
-    );
-
-    if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-      });
-    }
-  }
-
-  // ===============================
-  // وظائف إدارة الفواتير الإلكترونية
-  // ===============================
-
-  // اختيار ملف الفاتورة
-  Future<void> _pickInvoiceFile() async {
-    try {
-      setState(() => _isUploadingInvoice = true);
-
-      final file = await _stockInLogic.pickPdfFile();
-      if (file != null) {
-        // التحقق من صحة الملف
-        final fileValidation = _stockInLogic.validatePdfFile(file);
-        if (fileValidation != null) {
-          throw Exception(fileValidation);
-        }
-
-        // التحقق من حجم الملف
-        final sizeValidation = await _stockInLogic.validateFileSize(file);
-        if (sizeValidation != null) {
-          throw Exception(sizeValidation);
-        }
-
-        setState(() {
-          _selectedInvoiceFilePath = file.path;
-          _selectedInvoiceFileName = file.path.split('/').last;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Invoice file selected: $_selectedInvoiceFileName'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error selecting invoice: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isUploadingInvoice = false);
-    }
-  }
-
-  // إزالة ملف الفاتورة
-  void _removeInvoiceFile() {
-    setState(() {
-      _selectedInvoiceFilePath = null;
-      _selectedInvoiceFileName = null;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Invoice file removed'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+  Future<void> _loadWarehouses() async {
+    await widget.stockInController.loadWarehouses();
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.8,
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: const EdgeInsets.all(24),
+    final isEditing = widget.stockIn != null;
+    final localizations = AppLocalizations.of(context);
+    
+    return AlertDialog(
+      title: Text(isEditing 
+          ? 'تعديل سجل إدخال المخزون' 
+          : 'تسجيل إدخال مخزون جديد'),
+      content: SizedBox(
+        width: 800,
+        height: 700,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // القسم الأول - المنتجات
+                _buildProductsSection(),
+                const SizedBox(height: 24),
+                
+                // القسم الثاني - المعلومات العامة
+                _buildGeneralInfoSection(),
+                const SizedBox(height: 24),
+                
+                // القسم الثالث - رفع الفاتورة
+                _buildInvoiceUploadSection(),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(localizations?.cancel ?? 'إلغاء'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _saveStockIn,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(isEditing ? 'تحديث' : 'حفظ'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductsSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
-                Icon(
-                  widget.record != null ? Icons.edit : Icons.add,
-                  size: 28,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  widget.record != null ? 'Edit Stock In Record' : 'Record Stock In',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                const Icon(Icons.inventory_2, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text(
+                  'المنتجات',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
                 ),
                 const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
+                ElevatedButton.icon(
+                  onPressed: _addProductRow,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('إضافة منتج'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
-            const Divider(height: 24),
-            // Form Content
-            Expanded(
-              child: _isLoadingData
-                  ? const Center(child: CircularProgressIndicator())
-                  : _buildForm(),
-            ),
-            // Actions
             const SizedBox(height: 16),
+            
+            // صفوف المنتجات
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _productControllers.length,
+              itemBuilder: (context, index) {
+                return _buildProductRow(index);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductRow(int index) {
+    final controller = _productControllers[index];
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: Colors.grey.withOpacity(0.05),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
-                  onPressed: _isLoading ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                Text('منتج ${index + 1}', 
+                     style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                if (_productControllers.length > 1)
+                  IconButton(
+                    onPressed: () => _removeProductRow(index),
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    tooltip: 'حذف المنتج',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            Row(
+              children: [
+                // Product ID
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: controller.productIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'رقم المنتج *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.tag),
+                          hintText: 'اكتب رقم أو اسم المنتج',
+                        ),
+                        onChanged: (value) => _searchProductById(value, index),
+                        onTap: () {
+                          // عرض نتائج البحث عند النقر على الحقل
+                          if (controller.productIdController.text.isNotEmpty) {
+                            _searchProductById(controller.productIdController.text, index);
+                          }
+                        },
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) {
+                            return 'رقم المنتج مطلوب';
+                          }
+                          return null;
+                        },
+                      ),
+                      // عرض نتائج البحث
+                      if (controller.isSearching)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          child: const Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              SizedBox(width: 8),
+                              Text('جاري البحث...', style: TextStyle(fontSize: 12)),
+                            ],
+                          ),
+                        )
+                      else if (controller.searchResults.isNotEmpty)
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: controller.searchResults.length,
+                            itemBuilder: (context, searchIndex) {
+                              final product = controller.searchResults[searchIndex];
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                  product.name,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                subtitle: Text(
+                                  'رقم المنتج: ${product.id}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                leading: const Icon(Icons.inventory_2, size: 20),
+                                onTap: () => _selectProduct(product, index),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _saveRecord,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                
+                // Product Name
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: controller.productNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'اسم المنتج *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.inventory),
+                          hintText: 'اكتب اسم المنتج للبحث',
+                        ),
+                        onChanged: (value) => _searchProductByName(value, index),
+                        onTap: () {
+                          // عرض نتائج البحث عند النقر على الحقل
+                          if (controller.productNameController.text.isNotEmpty) {
+                            _searchProductByName(controller.productNameController.text, index);
+                          }
+                        },
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) {
+                            return 'اسم المنتج مطلوب';
+                          }
+                          return null;
+                        },
+                      ),
+                      // عرض نتائج البحث للاسم أيضاً (في حالة البحث من خلال الاسم)
+                      if (controller.isSearching && controller.productIdController.text.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          child: const Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              SizedBox(width: 8),
+                              Text('جاري البحث...', style: TextStyle(fontSize: 12)),
+                            ],
+                          ),
                         )
-                      : Text(widget.record != null ? 'Update' : 'Save'),
+                      else if (controller.searchResults.isNotEmpty && 
+                          controller.productIdController.text.isEmpty)
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: controller.searchResults.length,
+                            itemBuilder: (context, searchIndex) {
+                              final product = controller.searchResults[searchIndex];
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                  product.name,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                subtitle: Text(
+                                  'رقم المنتج: ${product.id}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                leading: const Icon(Icons.inventory_2, size: 20),
+                                onTap: () => _selectProduct(product, index),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            Row(
+              children: [
+                // Quantity
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: controller.quantityController,
+                    decoration: const InputDecoration(
+                      labelText: 'الكمية *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.numbers),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'الكمية مطلوبة';
+                      }
+                      if (double.tryParse(value!) == null || double.parse(value) <= 0) {
+                        return 'كمية غير صحيحة';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Unit
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<String>(
+                    value: controller.selectedUnit,
+                    decoration: const InputDecoration(
+                      labelText: 'الوحدة *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.straighten),
+                    ),
+                    items: ['piece', 'KG', 'Liter', 'Meter'].map((unit) {
+                      return DropdownMenuItem(
+                        value: unit,
+                        child: Text(unit),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        controller.selectedUnit = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'الوحدة مطلوبة';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
               ],
             ),
@@ -1093,686 +1224,184 @@ class _StockInFormDialogState extends State<StockInFormDialog> {
     );
   }
 
-  Widget _buildForm() {
-    return Form(
-      key: _formKey,
-      child: SingleChildScrollView(
+  Widget _buildGeneralInfoSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Selection
-            Text(
-              'Product Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            
-            // Product ID Field
             Row(
               children: [
-                Expanded(
-                  flex: 1,
-                  child: TextFormField(
-                    controller: _productIdController,
-                    decoration: InputDecoration(
-                      labelText: 'Product ID',
-                      border: const OutlineInputBorder(),
-                      hintText: 'Enter product ID',
-                      prefixIcon: _selectedProductId != null 
-                          ? Icon(Icons.check_circle, color: Colors.green) 
-                          : const Icon(Icons.tag),
-                    ),
-                    onChanged: (value) {
-                      if (value.isNotEmpty) {
-                        _findProductById(value);
-                      } else {
-                        setState(() {
-                          _selectedProductId = null;
-                          _productNameController.text = '';
-                        });
-                      }
-                    },
-                    validator: (value) {
-                      if (_selectedProductId == null) {
-                        return 'Please select a valid product';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text('OR', style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextFormField(
-                        controller: _productNameController,
-                        decoration: InputDecoration(
-                          labelText: 'Product Name',
-                          border: const OutlineInputBorder(),
-                          hintText: 'Type to search products...',
-                          prefixIcon: _selectedProductId != null 
-                              ? Icon(Icons.check_circle, color: Colors.green) 
-                              : const Icon(Icons.search),
-                          suffixIcon: _productNameController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _productNameController.clear();
-                                    _productIdController.clear();
-                                    setState(() {
-                                      _selectedProductId = null;
-                                      _filteredProducts = _products;
-                                    });
-                                  },
-                                )
-                              : null,
-                        ),
-                        onChanged: (value) {
-                          _filterProducts(value);
-                          if (value.isEmpty) {
-                            setState(() {
-                              _selectedProductId = null;
-                              _productIdController.text = '';
-                            });
-                          }
-                        },
-                        validator: (value) {
-                          if (_selectedProductId == null) {
-                            return 'Please select a valid product';
-                          }
-                          return null;
-                        },
-                      ),
-                      // Product suggestions dropdown
-                      if (_productNameController.text.isNotEmpty && _selectedProductId == null)
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade600),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Theme.of(context).cardColor,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: _filteredProducts.isEmpty
-                                ? Container(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.search_off,
-                                          color: Theme.of(context).textTheme.bodySmall?.color,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'No products found',
-                                          style: TextStyle(
-                                            color: Theme.of(context).textTheme.bodySmall?.color,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    shrinkWrap: true,
-                                    itemCount: _filteredProducts.take(10).length,
-                              itemBuilder: (context, index) {
-                                final product = _filteredProducts[index];
-                                final isLast = index == _filteredProducts.take(10).length - 1;
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    border: isLast ? null : Border(
-                                      bottom: BorderSide(
-                                        color: Theme.of(context).dividerColor.withOpacity(0.5),
-                                        width: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                  child: ListTile(
-                                    dense: true,
-                                    hoverColor: Theme.of(context).hoverColor,
-                                    title: Text(
-                                      product['name'] ?? 'Unknown Product',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      'ID: ${product['id'] ?? 'N/A'}',
-                                      style: TextStyle(
-                                        fontSize: 12, 
-                                        color: Theme.of(context).textTheme.bodySmall?.color,
-                                      ),
-                                    ),
-                                    trailing: Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 12,
-                                      color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
-                                    ),
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedProductId = product['id'];
-                                        _productIdController.text = product['id'] ?? '';
-                                        _productNameController.text = product['name'] ?? '';
-                                        _filteredProducts = [];
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                    ],
+                const Icon(Icons.info, color: Colors.orange),
+                const SizedBox(width: 8),
+                const Text(
+                  'المعلومات العامة',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-
-            // Quantity & Unit
-            Text(
-              'Quantity Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _quantityController,
-                    decoration: const InputDecoration(
-                      labelText: 'Quantity *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter quantity';
-                      }
-                      if (double.tryParse(value) == null || double.parse(value) <= 0) {
-                        return 'Please enter a valid quantity';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Unit *',
-                      border: OutlineInputBorder(),
-                    ),
-                    value: _selectedUnit,
-                    items: const [
-                      DropdownMenuItem(value: 'PC', child: Text('Piece')),
-                      DropdownMenuItem(value: 'KG', child: Text('Kilogram')),
-                      DropdownMenuItem(value: 'BOX', child: Text('Box')),
-                      DropdownMenuItem(value: 'CARTON', child: Text('Carton')),
-                      DropdownMenuItem(value: 'LITER', child: Text('Liter')),
-                    ],
-                    onChanged: (value) {
-                      setState(() => _selectedUnit = value);
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please select a unit';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Supplier Selection
-            Text(
-              'Supplier Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             
-            // Supplier Tax Number Field
-            Row(
+            Column(
               children: [
-                Expanded(
-                  flex: 1,
-                  child: TextFormField(
-                    controller: _supplierTaxController,
-                    decoration: InputDecoration(
-                      labelText: 'Supplier Tax Number',
-                      border: const OutlineInputBorder(),
-                      hintText: 'Enter tax number',
-                      prefixIcon: _selectedSupplierId != null 
-                          ? Icon(Icons.check_circle, color: Colors.green) 
-                          : const Icon(Icons.numbers),
-                    ),
-                    onChanged: (value) {
-                      if (value.isNotEmpty) {
-                        _findSupplierByTaxNumber(value);
-                      } else {
-                        setState(() {
-                          _selectedSupplierId = null;
-                          _supplierNameController.text = '';
-                        });
-                      }
-                    },
-                    validator: (value) {
-                      if (_selectedSupplierId == null) {
-                        return 'Please select a valid supplier';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text('OR', style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextFormField(
-                        controller: _supplierNameController,
-                        decoration: InputDecoration(
-                          labelText: 'Supplier Name',
-                          border: const OutlineInputBorder(),
-                          hintText: 'Type to search suppliers...',
-                          prefixIcon: _selectedSupplierId != null 
-                              ? Icon(Icons.check_circle, color: Colors.green) 
-                              : const Icon(Icons.search),
-                          suffixIcon: _supplierNameController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _supplierNameController.clear();
-                                    _supplierTaxController.clear();
-                                    setState(() {
-                                      _selectedSupplierId = null;
-                                      _filteredSuppliers = _suppliers;
-                                    });
-                                  },
-                                )
-                              : null,
+                Row(
+                  children: [
+                    // Supplier Tax Number
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _supplierTaxController,
+                        decoration: const InputDecoration(
+                          labelText: 'الرقم الضريبي للمورد *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.numbers),
+                          hintText: 'اكتب الرقم الضريبي',
                         ),
-                        onChanged: (value) {
-                          _filterSuppliers(value);
-                          if (value.isEmpty) {
-                            setState(() {
-                              _selectedSupplierId = null;
-                              _supplierTaxController.text = '';
-                            });
+                        onChanged: (value) => _searchSuppliersByTax(value),
+                        onTap: () {
+                          if (_supplierTaxController.text.isNotEmpty) {
+                            _searchSuppliersByTax(_supplierTaxController.text);
                           }
                         },
                         validator: (value) {
                           if (_selectedSupplierId == null) {
-                            return 'Please select a valid supplier';
+                            return 'يجب اختيار مورد';
                           }
                           return null;
                         },
                       ),
-                      // Supplier suggestions dropdown
-                      if (_supplierNameController.text.isNotEmpty && _selectedSupplierId == null)
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade600),
-                            borderRadius: BorderRadius.circular(8),
-                            color: Theme.of(context).cardColor,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: _filteredSuppliers.isEmpty
-                                ? Container(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.search_off,
-                                          color: Theme.of(context).textTheme.bodySmall?.color,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'No suppliers found',
-                                          style: TextStyle(
-                                            color: Theme.of(context).textTheme.bodySmall?.color,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    shrinkWrap: true,
-                                    itemCount: _filteredSuppliers.take(10).length,
-                                    itemBuilder: (context, index) {
-                                      final supplier = _filteredSuppliers[index];
-                                      final isLast = index == _filteredSuppliers.take(10).length - 1;
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          border: isLast ? null : Border(
-                                            bottom: BorderSide(
-                                              color: Theme.of(context).dividerColor.withOpacity(0.5),
-                                              width: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                        child: ListTile(
-                                          dense: true,
-                                          hoverColor: Theme.of(context).hoverColor,
-                                          title: Text(
-                                            supplier['name'] ?? 'Unknown Supplier',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Theme.of(context).textTheme.bodyLarge?.color,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          subtitle: Text(
-                                            'Tax No: ${supplier['tax_number'] ?? 'N/A'}',
-                                            style: TextStyle(
-                                              fontSize: 12, 
-                                              color: Theme.of(context).textTheme.bodySmall?.color,
-                                            ),
-                                          ),
-                                          trailing: Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 12,
-                                            color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
-                                          ),
-                                          onTap: () {
-                                            setState(() {
-                                              _selectedSupplierId = supplier['id'];
-                                              _supplierTaxController.text = supplier['tax_number'] ?? '';
-                                              _supplierNameController.text = supplier['name'] ?? '';
-                                              _filteredSuppliers = [];
-                                            });
-                                          },
-                                        ),
-                                      );
-                                    },
-                                  ),
-                          ),
+                    ),
+                    const SizedBox(width: 12),
+                    
+                    // Supplier Name
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _supplierSearchController,
+                        decoration: const InputDecoration(
+                          labelText: 'اسم المورد *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.business),
+                          hintText: 'اكتب اسم المورد',
                         ),
-                    ],
-                  ),
+                        onChanged: (value) => _searchSuppliersByName(value),
+                        onTap: () {
+                          if (_supplierSearchController.text.isNotEmpty) {
+                            _searchSuppliersByName(_supplierSearchController.text);
+                          }
+                        },
+                        validator: (value) {
+                          if (_selectedSupplierId == null) {
+                            return 'يجب اختيار مورد';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                
+                Row(
+                  children: [
+                    // Warehouse dropdown
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedWarehouseId,
+                        decoration: const InputDecoration(
+                          labelText: 'المخزن *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.warehouse),
+                        ),
+                        items: widget.stockInController.warehouses.map((warehouse) {
+                          return DropdownMenuItem<String>(
+                            value: warehouse['id'].toString(),
+                            child: Text(warehouse['name'] ?? ''),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedWarehouseId = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value?.isEmpty ?? true) {
+                            return 'المخزن مطلوب';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    
+                    // Date picker
+                    Expanded(
+                      child: TextFormField(
+                        decoration: const InputDecoration(
+                          labelText: 'التاريخ *',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.calendar_today),
+                        ),
+                        readOnly: true,
+                        controller: TextEditingController(
+                          text: '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                        ),
+                        onTap: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: _selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(const Duration(days: 1)),
+                          );
+                          if (date != null) {
+                            setState(() {
+                              _selectedDate = date;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-
-            // Warehouse Selection
-            Text(
-              'Warehouse Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Select Warehouse *',
-                border: OutlineInputBorder(),
-              ),
-              value: _selectedWarehouseId,
-              items: _warehouses.map((warehouse) {
-                return DropdownMenuItem<String>(
-                  value: warehouse['id'],
-                  child: Text('${warehouse['code']} - ${warehouse['name']}'),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() => _selectedWarehouseId = value);
-              },
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please select a warehouse';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // Date Selection
-            Text(
-              'Date Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: _selectDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade600),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedDate != null
-                            ? 'Selected Date: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
-                            : 'Select Date',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: _selectedDate != null 
-                              ? Theme.of(context).textTheme.bodyLarge?.color
-                              : Theme.of(context).hintColor,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_drop_down,
-                      color: Theme.of(context).iconTheme.color,
-                    ),
-                  ],
+            
+            // Supplier search results
+            if (_supplierSearchResults.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                constraints: const BoxConstraints(maxHeight: 150),
+                child: Card(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _supplierSearchResults.length,
+                    itemBuilder: (context, index) {
+                      final supplier = _supplierSearchResults[index];
+                      return ListTile(
+                        title: Text(supplier.name),
+                        subtitle: Text('الرقم الضريبي: ${supplier.taxNumber ?? 'غير متوفر'}'),
+                        dense: true,
+                        onTap: () => _selectSupplier(supplier),
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // Electronic Invoice Upload
-            Text(
-              'Electronic Invoice',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade400),
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.grey.shade50,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_selectedInvoiceFileName == null) ...[
-                    // Upload button when no file selected
-                    Center(
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.cloud_upload_outlined,
-                            size: 48,
-                            color: Colors.blue.shade600,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Upload Electronic Invoice (PDF)',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade800,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Max file size: 10MB • PDF format only',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            onPressed: _isUploadingInvoice ? null : _pickInvoiceFile,
-                            icon: _isUploadingInvoice 
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2,color: Colors.black,),
-                                  )
-                                : const Icon(Icons.attach_file),
-                            label: Text(_isUploadingInvoice ? 'Selecting...' : 'Choose PDF File',
-                              style: TextStyle(color: Colors.black),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    // File selected display
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                        border: Border.all(color: Colors.green.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.red.shade600,
-                            size: 32,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _selectedInvoiceFileName!,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.green.shade800,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.record?.electronicInvoiceUrl != null
-                                      ? 'Previously uploaded invoice'
-                                      : 'Ready to upload',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.green.shade700,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: _removeInvoiceFile,
-                            icon: Icon(
-                              Icons.close,
-                              color: Colors.red.shade600,
-                            ),
-                            tooltip: 'Remove file',
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Replace file button
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: _isUploadingInvoice ? null : _pickInvoiceFile,
-                        icon: _isUploadingInvoice
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.refresh,color: Colors.black,),
-                        label: Text(_isUploadingInvoice ? 'Selecting...' : 'Choose Different File', style: TextStyle(color: Colors.black)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
+            
             // Notes
-            Text(
-              'Additional Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
             TextFormField(
               controller: _notesController,
               decoration: const InputDecoration(
-                labelText: 'Notes (Optional)',
+                labelText: 'ملاحظات',
                 border: OutlineInputBorder(),
-                alignLabelWithHint: true,
+                prefixIcon: Icon(Icons.note),
               ),
               maxLines: 3,
             ),
@@ -1782,118 +1411,408 @@ class _StockInFormDialogState extends State<StockInFormDialog> {
     );
   }
 
-  Future<void> _saveRecord() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    // التحقق من أن التاريخ محدد
-    if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a date'),
-          backgroundColor: Colors.red,
+  Widget _buildInvoiceUploadSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.upload_file, color: Colors.purple),
+                const SizedBox(width: 8),
+                const Text(
+                  'رفع الفاتورة',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.picture_as_pdf, color: Colors.red),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _selectedFileName ?? 'لم يتم اختيار ملف',
+                            style: TextStyle(
+                              color: _selectedFileName != null 
+                                  ? Colors.black 
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _pickInvoiceFile,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('اختيار ملف'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                if (_selectedFileName != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _removeInvoiceFile,
+                    icon: const Icon(Icons.clear, color: Colors.red),
+                    tooltip: 'إزالة الملف',
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'يُفضل رفع ملفات PDF فقط',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
+
+  // Search methods
+  void _searchProductById(String value, int index) {
+    // Cancel previous timer if exists
+    _productSearchTimer?.cancel();
+    
+    if (value.isEmpty) {
+      setState(() {
+        _productControllers[index].searchResults.clear();
+        _productControllers[index].isSearching = false;
+      });
       return;
     }
 
-    print('Saving record...'); // للتصحيح
-    print('Selected Product ID: $_selectedProductId'); // للتصحيح
-    print('Selected Supplier ID: $_selectedSupplierId'); // للتصحيح
-    print('Selected Warehouse ID: $_selectedWarehouseId'); // للتصحيح
-    print('Selected Date: $_selectedDate'); // للتصحيح
+    // Show searching indicator
+    setState(() {
+      _productControllers[index].isSearching = true;
+    });
 
-    setState(() => _isLoading = true);
+    // Start new timer for delayed search
+    _productSearchTimer = Timer(const Duration(milliseconds: 500), () async {
+      final success = await widget.stockInController.searchProducts(value);
+      
+      if (success && mounted) {
+        setState(() {
+          _productControllers[index].searchResults = widget.stockInController.searchedProducts;
+          _productControllers[index].isSearching = false;
+        });
+        
+        // Auto-fill if exact match by ID
+        final exactMatch = widget.stockInController.searchedProducts
+            .where((p) => p.id.toLowerCase() == value.toLowerCase())
+            .firstOrNull;
+        
+        if (exactMatch != null && mounted) {
+          _productControllers[index].productNameController.text = exactMatch.name;
+          setState(() {
+            _productControllers[index].searchResults.clear();
+          });
+        }
+      } else if (mounted) {
+        setState(() {
+          _productControllers[index].isSearching = false;
+        });
+      }
+    });
+  }
+
+  void _searchProductByName(String value, int index) {
+    // Cancel previous timer if exists
+    _productSearchTimer?.cancel();
+    
+    if (value.isEmpty) {
+      setState(() {
+        _productControllers[index].searchResults.clear();
+        _productControllers[index].isSearching = false;
+      });
+      return;
+    }
+
+    // Show searching indicator
+    setState(() {
+      _productControllers[index].isSearching = true;
+    });
+
+    // Start new timer for delayed search
+    _productSearchTimer = Timer(const Duration(milliseconds: 500), () async {
+      final success = await widget.stockInController.searchProducts(value);
+      if (success && mounted) {
+        setState(() {
+          _productControllers[index].searchResults = widget.stockInController.searchedProducts;
+          _productControllers[index].isSearching = false;
+        });
+        
+        // Auto-fill if exact match by name
+        final exactMatch = widget.stockInController.searchedProducts
+            .where((p) => p.name.toLowerCase() == value.toLowerCase())
+            .firstOrNull;
+        
+        if (exactMatch != null && mounted) {
+          _productControllers[index].productIdController.text = exactMatch.id;
+          setState(() {
+            _productControllers[index].searchResults.clear();
+          });
+        }
+      } else if (mounted) {
+        setState(() {
+          _productControllers[index].isSearching = false;
+        });
+      }
+    });
+  }
+
+  void _selectProduct(ProductSearchResult product, int index) {
+    _productControllers[index].productIdController.text = product.id;
+    _productControllers[index].productNameController.text = product.name;
+    setState(() {
+      _productControllers[index].searchResults.clear();
+      _productControllers[index].isSearching = false;
+    });
+    
+    // إخفاء لوحة المفاتيح
+    FocusScope.of(context).unfocus();
+  }
+
+  // Search suppliers by tax number
+  void _searchSuppliersByTax(String value) {
+    // Cancel previous timer if exists
+    _supplierSearchTimer?.cancel();
+    
+    if (value.isEmpty) {
+      setState(() {
+        _supplierSearchResults.clear();
+        _selectedSupplierId = null;
+      });
+      return;
+    }
+
+    // Start new timer for delayed search
+    _supplierSearchTimer = Timer(const Duration(milliseconds: 500), () async {
+      final success = await widget.stockInController.searchSuppliers(value);
+      
+      if (success && mounted) {
+        setState(() {
+          _supplierSearchResults = widget.stockInController.searchedSuppliers;
+        });
+        
+        // Auto-fill if exact match by tax number
+        final exactMatch = widget.stockInController.searchedSuppliers
+            .where((s) => s.taxNumber?.toLowerCase() == value.toLowerCase())
+            .firstOrNull;
+        
+        if (exactMatch != null && mounted) {
+          _supplierSearchController.text = exactMatch.name;
+          setState(() {
+            _selectedSupplierId = exactMatch.id;
+            _supplierSearchResults.clear();
+          });
+        }
+      }
+    });
+  }
+
+  // Search suppliers by name
+  void _searchSuppliersByName(String value) {
+    // Cancel previous timer if exists
+    _supplierSearchTimer?.cancel();
+    
+    if (value.isEmpty) {
+      setState(() {
+        _supplierSearchResults.clear();
+        _selectedSupplierId = null;
+      });
+      return;
+    }
+
+    // Start new timer for delayed search
+    _supplierSearchTimer = Timer(const Duration(milliseconds: 500), () async {
+      final success = await widget.stockInController.searchSuppliers(value);
+      
+      if (success && mounted) {
+        setState(() {
+          _supplierSearchResults = widget.stockInController.searchedSuppliers;
+        });
+        
+        // Auto-fill if exact match by name
+        final exactMatch = widget.stockInController.searchedSuppliers
+            .where((s) => s.name.toLowerCase() == value.toLowerCase())
+            .firstOrNull;
+        
+        if (exactMatch != null && mounted) {
+          _supplierTaxController.text = exactMatch.taxNumber ?? '';
+          setState(() {
+            _selectedSupplierId = exactMatch.id;
+            _supplierSearchResults.clear();
+          });
+        }
+      }
+    });
+  }
+
+  void _selectSupplier(SupplierSearchResult supplier) {
+    setState(() {
+      _selectedSupplierId = supplier.id;
+      _supplierSearchController.text = supplier.name;
+      _supplierTaxController.text = supplier.taxNumber ?? '';
+      _supplierSearchResults.clear();
+    });
+    
+    // إخفاء لوحة المفاتيح
+    FocusScope.of(context).unfocus();
+  }
+
+  Future<void> _pickInvoiceFile() async {
+    // سيتم تطبيق file picker لاحقاً
+    setState(() {
+      _selectedFileName = 'sample_invoice.pdf';
+    });
+  }
+
+  void _removeInvoiceFile() {
+    setState(() {
+      _selectedFileName = null;
+      _invoiceFilePath = null;
+    });
+  }
+
+  Future<void> _saveStockIn() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      // إنشاء السجل أولاً
-      final record = StockInRecord(
-        id: widget.record?.id,
-        recordId: widget.record?.recordId ?? '', // سيتم إنشاؤه في الخادم
-        additionNumber: widget.record?.additionNumber ?? '', // سيتم إنشاؤه في الخادم
-        productId: _selectedProductId!,
-        quantity: int.parse(_quantityController.text),
-        unit: _selectedUnit!,
-        supplierId: _selectedSupplierId!,
+      // Prepare products list
+      final products = _productControllers.map((controller) {
+        return StockInItem(
+          productId: controller.productIdController.text.trim(),
+          productName: controller.productNameController.text.trim(),
+          quantity: double.parse(controller.quantityController.text.trim()),
+          unit: controller.selectedUnit!,
+        );
+      }).toList();
+
+      // Create request
+      final request = StockInRequest(
         warehouseId: _selectedWarehouseId!,
-        notes: _notesController.text.isEmpty ? null : _notesController.text,
-        invoiceDate: _selectedDate, // إضافة التاريخ المحدد
+        supplierId: _selectedSupplierId!,
+        date: _selectedDate,
+        notes: _notesController.text.trim().isNotEmpty 
+            ? _notesController.text.trim() 
+            : null,
+        invoiceFilePath: _invoiceFilePath,
+        products: products,
       );
 
-      print('Record to save: ${record.toJson()}'); // للتصحيح
-
-      String? recordId;
-      
-      if (widget.record != null && widget.record!.id != null) {
-        // تحديث سجل موجود
-        await _stockInLogic.updateStockInRecordWithStock(widget.record!.id!, widget.record!, record);
-        recordId = widget.record!.id;
+      bool success;
+      if (widget.stockIn != null) {
+        // Update existing record
+        success = await widget.stockInController.updateStockInRecord(
+          widget.stockIn!.id!,
+          request,
+        );
       } else {
-        // إضافة سجل جديد
-        await _stockInLogic.addStockInRecordWithStock(record);
-        
-        // الحصول على السجل المضاف حديثاً للحصول على ID
-        final newRecords = await _stockInLogic.getStockInRecords();
-        if (newRecords.isNotEmpty) {
-          recordId = newRecords.first.id;
-        }
+        // Create new record
+        success = await widget.stockInController.createStockInRecord(request);
       }
 
-      // رفع الفاتورة إذا تم اختيارها
-      if (_selectedInvoiceFilePath != null && 
-          recordId != null && 
-          !_selectedInvoiceFilePath!.startsWith('http')) {
-        // ملف جديد محلي يحتاج للرفع
-        try {
-          print('Uploading invoice file...'); // للتصحيح
+      if (success) {
+        if (mounted) {
+          Navigator.pop(context);
           
-          final file = File(_selectedInvoiceFilePath!);
-          await _stockInLogic.uploadInvoiceComplete(
-            recordId: recordId,
-            file: file,
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(widget.stockIn != null 
+                  ? 'تم تحديث السجل بنجاح' 
+                  : 'تم حفظ السجل بنجاح'),
+              backgroundColor: Colors.green,
+            ),
           );
           
-          print('Invoice uploaded successfully'); // للتصحيح
-        } catch (e) {
-          print('Error uploading invoice: $e'); // للتصحيح
-          // لا نرمي خطأ هنا، فقط نعرض تحذير
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Record saved but invoice upload failed: ${e.toString()}'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
+          // Call onSuccess after showing the message
+          widget.onSuccess();
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('خطأ: ${widget.stockInController.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.record != null 
-                  ? 'Record updated successfully'
-                  : 'Record added successfully',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-        widget.onSave();
-      }
     } catch (e) {
-      print('Error saving record: $e'); // للتصحيح
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving record: ${e.toString()}'),
+            content: Text('خطأ: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() {
+        _isLoading = false;
+      });
     }
+  }
+
+  @override
+  void dispose() {
+    // Cancel timers
+    _productSearchTimer?.cancel();
+    _supplierSearchTimer?.cancel();
+    
+    for (var controller in _productControllers) {
+      controller.dispose();
+    }
+    _supplierSearchController.dispose();
+    _supplierTaxController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+}
+
+// Helper class for product row controllers
+class ProductRowController {
+  final TextEditingController productIdController = TextEditingController();
+  final TextEditingController productNameController = TextEditingController();
+  final TextEditingController quantityController = TextEditingController();
+  String? selectedUnit;
+  List<ProductSearchResult> searchResults = [];
+  bool isSearching = false;
+
+  void dispose() {
+    productIdController.dispose();
+    productNameController.dispose();
+    quantityController.dispose();
   }
 }

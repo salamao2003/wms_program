@@ -1,863 +1,905 @@
-import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path/path.dart' as path;
-import 'package:mime/mime.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'supabase_service.dart';
 
-// StockInRecord Model
-class StockInRecord {
-  final String? id;
-  final String recordId;
-  final String additionNumber;
+// Stock In Models
+class StockInItem {
   final String productId;
-  final String? productName;
-  final int quantity;
+  final String productName;
+  final double quantity;
   final String unit;
-  final String? supplierId;
-  final String? supplierName;
-  final String? supplierTaxNumber;
-  final String? warehouseId;
-  final String? warehouseCode;
-  final String? warehouseName;
-  final String? notes;
-  final String? electronicInvoiceUrl;
-  final String? invoiceFileName;
-  final int? invoiceFileSize;
-  final DateTime? invoiceUploadedAt;
-  final DateTime? invoiceDate;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
 
-  StockInRecord({
-    this.id,
-    required this.recordId,
-    required this.additionNumber,
+  StockInItem({
     required this.productId,
-    this.productName,
+    required this.productName,
     required this.quantity,
     required this.unit,
-    this.supplierId,
-    this.supplierName,
-    this.supplierTaxNumber,
-    this.warehouseId,
-    this.warehouseCode,
-    this.warehouseName,
-    this.notes,
-    this.electronicInvoiceUrl,
-    this.invoiceFileName,
-    this.invoiceFileSize,
-    this.invoiceUploadedAt,
-    this.invoiceDate,
-    this.createdAt,
-    this.updatedAt,
   });
-
-  factory StockInRecord.fromJson(Map<String, dynamic> json) {
-    return StockInRecord(
-      id: json['id'],
-      recordId: json['record_id'] ?? '',
-      additionNumber: json['addition_number'] ?? '',
-      productId: json['product_id'] ?? '',
-      productName: json['products']?['name'] ?? json['product_name'],
-      quantity: json['quantity'] ?? 0,
-      unit: json['unit'] ?? '',
-      supplierId: json['supplier_id'],
-      supplierName: json['suppliers']?['name'] ?? json['supplier_name'],
-      supplierTaxNumber: json['suppliers']?['tax_number'] ?? json['supplier_tax_number'],
-      warehouseId: json['warehouse_id'],
-      warehouseCode: json['warehouses']?['code'] ?? json['warehouse_code'],
-      warehouseName: json['warehouses']?['name'] ?? json['warehouse_name'],
-      notes: json['notes'],
-      electronicInvoiceUrl: json['electronic_invoice_url'],
-      invoiceFileName: json['invoice_file_name'],
-      invoiceFileSize: json['invoice_file_size'],
-      invoiceUploadedAt: json['invoice_uploaded_at'] != null ? DateTime.parse(json['invoice_uploaded_at']) : null,
-      invoiceDate: json['invoice_date'] != null ? DateTime.parse(json['invoice_date']) : null,
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
-    );
-  }
 
   Map<String, dynamic> toJson() {
     return {
       'product_id': productId,
+      'product_name': productName,
       'quantity': quantity,
       'unit': unit,
-      'supplier_id': supplierId,
+    };
+  }
+
+  factory StockInItem.fromJson(Map<String, dynamic> json) {
+    return StockInItem(
+      productId: json['product_id'] ?? '',
+      productName: json['product_name'] ?? '',
+      quantity: (json['quantity'] ?? 0).toDouble(),
+      unit: json['unit'] ?? '',
+    );
+  }
+}
+
+class StockIn {
+  final int? id;
+  final String recordId;
+  final String additionNumber;
+  final String warehouseId;
+  final String warehouseName;
+  final String supplierId;
+  final String supplierName;
+  final DateTime date;
+  final String? notes;
+  final String? invoiceFilePath;
+  final List<StockInItem> products;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  StockIn({
+    this.id,
+    required this.recordId,
+    required this.additionNumber,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.supplierId,
+    required this.supplierName,
+    required this.date,
+    this.notes,
+    this.invoiceFilePath,
+    required this.products,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'record_id': recordId,
+      'addition_number': additionNumber,
       'warehouse_id': warehouseId,
+      'warehouse_name': warehouseName,
+      'supplier_id': supplierId,
+      'supplier_name': supplierName,
+      'date': date.toIso8601String(),
       'notes': notes,
-      'electronic_invoice_url': electronicInvoiceUrl,
-      'invoice_file_name': invoiceFileName,
-      'invoice_file_size': invoiceFileSize,
-      'invoice_uploaded_at': invoiceUploadedAt?.toIso8601String(),
-      'invoice_date': invoiceDate?.toIso8601String().split('T')[0],
-      'updated_at': DateTime.now().toIso8601String(),
+      'invoice_file_path': invoiceFilePath,
+      'products': products.map((item) => item.toJson()).toList(),
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
+
+  factory StockIn.fromJson(Map<String, dynamic> json) {
+    List<StockInItem> productsList = [];
+    
+    // Handle different formats of products data
+    if (json['products'] != null) {
+      if (json['products'] is String) {
+        // If products is a JSON string, parse it
+        try {
+          final productsData = jsonDecode(json['products']);
+          if (productsData is List) {
+            productsList = productsData
+                .map((item) => StockInItem.fromJson(item as Map<String, dynamic>))
+                .toList();
+          }
+        } catch (e) {
+          print('Error parsing products JSON: $e');
+        }
+      } else if (json['products'] is List) {
+        productsList = (json['products'] as List)
+            .map((item) => StockInItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    }
+
+    return StockIn(
+      id: json['id'] is String ? int.tryParse(json['id']) : json['id'],
+      recordId: json['record_id']?.toString() ?? '',
+      additionNumber: json['addition_number']?.toString() ?? '',
+      warehouseId: json['warehouse_id']?.toString() ?? '',
+      warehouseName: json['warehouse_name']?.toString() ?? '',
+      supplierId: json['supplier_id']?.toString() ?? '',
+      supplierName: json['supplier_name']?.toString() ?? '',
+      date: json['date'] != null 
+          ? DateTime.tryParse(json['date'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      notes: json['notes']?.toString(),
+      invoiceFilePath: json['invoice_file_path']?.toString(),
+      products: productsList,
+      createdAt: json['created_at'] != null 
+          ? DateTime.tryParse(json['created_at'].toString()) 
+          : null,
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.tryParse(json['updated_at'].toString()) 
+          : null,
+    );
+  }
+}
+
+class StockInRequest {
+  final String warehouseId;
+  final String supplierId;
+  final DateTime date;
+  final String? notes;
+  final String? invoiceFilePath;
+  final List<StockInItem> products;
+
+  StockInRequest({
+    required this.warehouseId,
+    required this.supplierId,
+    required this.date,
+    this.notes,
+    this.invoiceFilePath,
+    required this.products,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'warehouse_id': warehouseId,
+      'supplier_id': supplierId,
+      'date': date.toIso8601String().split('T')[0], // Date only
+      'notes': notes,
+      'invoice_file_path': invoiceFilePath,
+      'products': products.map((item) => item.toJson()).toList(),
     };
   }
 }
 
-// Stock In Logic Class
-class StockInLogic {
-  final SupabaseClient _supabase = Supabase.instance.client;
+class ProductSearchResult {
+  final String id;
+  final String name;
+  final String supplier;
+  final int? categoryId;
 
-  // جلب جميع سجلات Stock In مع البيانات المرتبطة
-  Future<List<StockInRecord>> getStockInRecords() async {
-    try {
-      final response = await _supabase
-          .from('stock_in_records')
-          .select('''
-            *,
-            products(name),
-            suppliers(name, tax_number),
-            warehouses(code, name)
-          ''')
-          .order('created_at', ascending: false);
-      
-      return (response as List)
-          .map((item) => StockInRecord.fromJson(item))
-          .toList();
-    } catch (e) {
-      throw Exception('Error fetching stock in records: $e');
-    }
+  ProductSearchResult({
+    required this.id,
+    required this.name,
+    required this.supplier,
+    this.categoryId,
+  });
+
+  factory ProductSearchResult.fromJson(Map<String, dynamic> json) {
+    return ProductSearchResult(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      supplier: json['supplier'] ?? '',
+      categoryId: json['category_id'],
+    );
+  }
+}
+
+class SupplierSearchResult {
+  final String id;
+  final String name;
+  final String? taxNumber;
+
+  SupplierSearchResult({
+    required this.id,
+    required this.name,
+    this.taxNumber,
+  });
+
+  factory SupplierSearchResult.fromJson(Map<String, dynamic> json) {
+    return SupplierSearchResult(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      taxNumber: json['tax_number'],
+    );
+  }
+}
+
+class ApiResponse<T> {
+  final bool success;
+  final T? data;
+  final String? error;
+  final String? message;
+
+  ApiResponse({
+    required this.success,
+    this.data,
+    this.error,
+    this.message,
+  });
+
+  factory ApiResponse.success(T data, {String? message}) {
+    return ApiResponse(
+      success: true,
+      data: data,
+      message: message,
+    );
   }
 
-  // إضافة سجل Stock In جديد
-  Future<void> addStockInRecord(StockInRecord record) async {
-    try {
-      await _supabase
-          .from('stock_in_records')
-          .insert(record.toJson());
-    } catch (e) {
-      throw Exception('Error adding stock in record: $e');
-    }
+  factory ApiResponse.error(String error) {
+    return ApiResponse(
+      success: false,
+      error: error,
+    );
   }
+}
 
-  // تحديث سجل Stock In
-  Future<void> updateStockInRecord(String id, StockInRecord record) async {
-    try {
-      await _supabase
-          .from('stock_in_records')
-          .update(record.toJson())
-          .eq('id', id);
-    } catch (e) {
-      throw Exception('Error updating stock in record: $e');
+// Stock In Service
+// import 'package:supabase_flutter/supabase_flutter.dart';
+// import 'supabase_service.dart';
+
+class StockInService {
+  static final StockInService _instance = StockInService._internal();
+  factory StockInService() => _instance;
+  StockInService._internal();
+
+  final SupabaseClient _client = SupabaseService().client;
+
+  // Create Stock In Record
+ Future<ApiResponse<Map<String, dynamic>>> createStockInRecord(
+  StockInRequest request,
+) async {
+  try {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return ApiResponse.error('المستخدم غير مصرح له');
     }
-  }
 
-  // حذف سجل Stock In
-  Future<void> deleteStockInRecord(String id) async {
-    try {
-      await _supabase
-          .from('stock_in_records')
-          .delete()
-          .eq('id', id);
-    } catch (e) {
-      throw Exception('Error deleting stock in record: $e');
-    }
-  }
-
-  // البحث في سجلات Stock In مع الفلاتر
-  Future<List<StockInRecord>> searchStockInRecords({
-    String? searchTerm,
-    String? supplierId,
-    DateTime? dateFrom,
-    DateTime? dateTo,
-    String? warehouseId,
-  }) async {
-    try {
-      var query = _supabase
-          .from('stock_in_records')
-          .select('''
-            *,
-            products(name),
-            suppliers(name, tax_number),
-            warehouses(code, name)
-          ''');
-
-      // إضافة البحث النصي
-      if (searchTerm != null && searchTerm.isNotEmpty) {
-        query = query.or(
-          'record_id.ilike.%$searchTerm%,'
-          'addition_number.ilike.%$searchTerm%,'
-          'product_id.ilike.%$searchTerm%,'
-          'products.name.ilike.%$searchTerm%'
-        );
-      }
-
-      // فلترة بالمورد
-      if (supplierId != null && supplierId.isNotEmpty) {
-        query = query.eq('supplier_id', supplierId);
-      }
-
-      // فلترة بالمخزن
-      if (warehouseId != null && warehouseId.isNotEmpty) {
-        query = query.eq('warehouse_id', warehouseId);
-      }
-
-      // فلترة بالتاريخ من
-      if (dateFrom != null) {
-        query = query.gte('invoice_date', dateFrom.toIso8601String().split('T')[0]);
-      }
-
-      // فلترة بالتاريخ إلى
-      if (dateTo != null) {
-        query = query.lte('invoice_date', dateTo.toIso8601String().split('T')[0]);
-      }
-
-      final response = await query.order('created_at', ascending: false);
-      
-      return (response as List)
-          .map((item) => StockInRecord.fromJson(item))
-          .toList();
-    } catch (e) {
-      throw Exception('Error searching stock in records: $e');
-    }
-  }
-
-  // إحصائيات Stock In
-  Future<Map<String, int>> getStockInStats() async {
-    try {
-      final today = DateTime.now();
-      final todayStr = today.toIso8601String().split('T')[0];
-      
-      final weekStart = today.subtract(Duration(days: today.weekday - 1));
-      final weekStartStr = weekStart.toIso8601String().split('T')[0];
-      
-      final monthStart = DateTime(today.year, today.month, 1);
-      final monthStartStr = monthStart.toIso8601String().split('T')[0];
-
-      // إحصائيات اليوم
-      final todayResponse = await _supabase
-          .from('stock_in_records')
-          .select('quantity')
-          .eq('invoice_date', todayStr);
-      
-      final todayCount = (todayResponse as List).fold<int>(
-        0, (sum, record) => sum + (record['quantity'] as int? ?? 0)
-      );
-
-      // إحصائيات الأسبوع
-      final weekResponse = await _supabase
-          .from('stock_in_records')
-          .select('quantity')
-          .gte('invoice_date', weekStartStr)
-          .lte('invoice_date', todayStr);
-      
-      final weekCount = (weekResponse as List).fold<int>(
-        0, (sum, record) => sum + (record['quantity'] as int? ?? 0)
-      );
-
-      // إحصائيات الشهر
-      final monthResponse = await _supabase
-          .from('stock_in_records')
-          .select('quantity')
-          .gte('invoice_date', monthStartStr)
-          .lte('invoice_date', todayStr);
-      
-      final monthCount = (monthResponse as List).fold<int>(
-        0, (sum, record) => sum + (record['quantity'] as int? ?? 0)
-      );
-
-      return {
-        'today': todayCount,
-        'week': weekCount,
-        'month': monthCount,
-      };
-    } catch (e) {
-      throw Exception('Error fetching stock in stats: $e');
-    }
-  }
-
-  // جلب جميع المخازن للـ dropdown
-  Future<List<Map<String, dynamic>>> getWarehouses() async {
-    try {
-      final response = await _supabase
-          .from('warehouses')
-          .select('id, code, name')
-          .order('code');
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      throw Exception('Error fetching warehouses: $e');
-    }
-  }
-
-  // جلب جميع الموردين للـ dropdown
-  Future<List<Map<String, dynamic>>> getSuppliers() async {
-    try {
-      final response = await _supabase
-          .from('suppliers')
-          .select('id, name, tax_number')
-          .order('name');
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      throw Exception('Error fetching suppliers: $e');
-    }
-  }
-
-  // جلب جميع المنتجات للـ autocomplete
-  Future<List<Map<String, dynamic>>> getProducts({String? searchTerm}) async {
-    try {
-      var query = _supabase
-          .from('products')
-          .select('id, name');
-
-      if (searchTerm != null && searchTerm.isNotEmpty) {
-        query = query.or('id.ilike.%$searchTerm%,name.ilike.%$searchTerm%');
-      }
-
-      final response = await query
-          .order('name')
-          .limit(100);
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      throw Exception('Error fetching products: $e');
-    }
-  }
-
-  // التحقق من صحة البيانات
-  String? validateStockInRecord({
-    required String productId,
-    required int quantity,
-    required String unit,
-    required String warehouseId,
-    required String supplierId,
-  }) {
-    if (productId.trim().isEmpty) {
-      return 'Product ID is required';
+    // الحصول على رقم إضافة واحد لجميع المنتجات
+    final additionNumberResponse = await _client
+        .rpc('generate_addition_number', params: {
+          'p_warehouse_id': request.warehouseId,
+        });
+    
+    if (additionNumberResponse == null) {
+      return ApiResponse.error('فشل في توليد رقم الإضافة');
     }
     
-    if (quantity <= 0) {
-      return 'Quantity must be greater than 0';
+    final additionNumber = additionNumberResponse.toString();
+    
+    if (additionNumber.startsWith('ERR-')) {
+      return ApiResponse.error('المخزن المحدد غير موجود');
     }
 
-    if (unit.trim().isEmpty) {
-      return 'Unit is required';
-    }
+    print('Generated Addition Number: $additionNumber');
+    
+    List<Map<String, dynamic>> createdRecords = [];
 
-    if (warehouseId.trim().isEmpty) {
-      return 'Warehouse is required';
-    }
-
-    if (supplierId.trim().isEmpty) {
-      return 'Supplier is required';
-    }
-
-    return null; // البيانات صحيحة
-  }
-
-  // ===============================
-  // وظائف إدارة مخزون المخازن
-  // ===============================
-
-  // تحديث مخزون المخزن عند إضافة Stock In
-  Future<void> updateWarehouseStock({
-    required String warehouseId,
-    required String productId,
-    required int quantity,
-    required String unit,
-  }) async {
-    try {
-      // البحث عن السجل الموجود
-      final existingStock = await _supabase
-          .from('warehouse_stock')
-          .select('*')
-          .eq('warehouse_id', warehouseId)
-          .eq('product_id', productId)
-          .maybeSingle();
-
-      if (existingStock != null) {
-        // تحديث الكمية الموجودة
-        final currentQuantity = existingStock['current_quantity'] as int? ?? 0;
-        final newQuantity = currentQuantity + quantity;
+    // إنشاء سجل منفصل لكل منتج بنفس رقم الإضافة
+    for (var product in request.products) {
+      try {
+        // الحصول على رقم سجل فريد لكل منتج
+        final recordIdResponse = await _client.rpc('generate_record_id');
         
-        await _supabase
-            .from('warehouse_stock')
-            .update({
-              'current_quantity': newQuantity,  // ✅ تم التصحيح
-              'unit': unit,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('warehouse_id', warehouseId)
-            .eq('product_id', productId);
-      } else {
-        // إنشاء سجل جديد
-        await _supabase
-            .from('warehouse_stock')
+        if (recordIdResponse == null) {
+          print('Failed to generate record ID for product: ${product.productId}');
+          continue;
+        }
+        
+        final recordId = recordIdResponse.toString();
+        print('Generated Record ID: $recordId for product: ${product.productId}');
+
+        // إدخال السجل في جدول stock_in
+        final stockInData = await _client
+            .from('stock_in')
             .insert({
-              'warehouse_id': warehouseId,
-              'product_id': productId,
-              'current_quantity': quantity,  // ✅ تم التصحيح
-              'unit': unit,
-              'updated_at': DateTime.now().toIso8601String(),
-            });
-      }
-    } catch (e) {
-      throw Exception('Error updating warehouse stock: $e');
-    }
-  }
+              'record_id': recordId,
+              'addition_number': additionNumber,
+              'warehouse_id': request.warehouseId,
+              'supplier_id': request.supplierId,
+              'date': request.date.toIso8601String().split('T')[0],
+              'notes': request.notes,
+              'invoice_file_path': request.invoiceFilePath,
+              'created_by': user.id,
+            })
+            .select()
+            .single();
 
-  // تقليل مخزون المخزن عند الحذف أو التعديل
-  Future<void> reduceWarehouseStock({
-    required String warehouseId,
-    required String productId,
-    required int quantity,
-  }) async {
-    try {
-      // البحث عن السجل الموجود مع معالجة الأخطاء
-      final existingStock = await _supabase
+        print('Created stock_in record: ${stockInData['id']}');
+
+        // إدخال تفاصيل المنتج في جدول stock_in_items
+        await _client.from('stock_in_items').insert({
+          'stock_in_id': stockInData['id'],
+          'product_id': product.productId,
+          'quantity': product.quantity,
+          'unit': product.unit,
+        });
+
+        print('Created stock_in_item for product: ${product.productId}');
+
+        // تحديث مخزون المخزن
+        await _updateWarehouseStock(
+          warehouseId: request.warehouseId,
+          productId: product.productId,
+          quantity: product.quantity,
+          unit: product.unit,
+          isAddition: true,
+        );
+
+        createdRecords.add(stockInData);
+      } catch (productError) {
+        print('Error processing product ${product.productId}: $productError');
+        // نكمل مع باقي المنتجات حتى لو فشل واحد
+        continue;
+      }
+    }
+
+    if (createdRecords.isEmpty) {
+      return ApiResponse.error('فشل في إنشاء أي سجلات');
+    }
+
+    print('Successfully created ${createdRecords.length} records');
+    
+    return ApiResponse.success({
+      'success': true,
+      'message': 'تم إنشاء ${createdRecords.length} سجل بنجاح',
+      'data': createdRecords,
+      'addition_number': additionNumber,
+    });
+  } catch (e) {
+    print('Error in createStockInRecord: $e');
+    return ApiResponse.error('خطأ: ${e.toString()}');
+  }
+}
+// دالة مساعدة لتحديث مخزون المخزن
+// دالة مساعدة لتحديث مخزون المخزن
+Future<void> _updateWarehouseStock({
+  required String warehouseId,
+  required String productId,
+  required double quantity,
+  required String unit,
+  required bool isAddition,
+}) async {
+  try {
+    // التحقق من وجود سجل مخزون للمنتج في المخزن
+    final existing = await _client
+        .from('warehouse_stock')
+        .select()
+        .eq('warehouse_id', warehouseId)
+        .eq('product_id', productId)
+        .maybeSingle();
+
+    if (existing != null) {
+      // تحديث الكمية الموجودة
+      final currentQuantity = (existing['current_quantity'] ?? 0).toDouble();
+      final newQuantity = isAddition 
+          ? currentQuantity + quantity 
+          : currentQuantity - quantity;
+
+      await _client
           .from('warehouse_stock')
-          .select('*')
+          .update({
+            'current_quantity': newQuantity,
+            'unit': unit,
+            // حذف updated_at - سيتم تحديثه تلقائياً من قاعدة البيانات
+          })
           .eq('warehouse_id', warehouseId)
-          .eq('product_id', productId)
-          .maybeSingle();
-
-      if (existingStock != null) {
-        final currentQuantity = existingStock['current_quantity'] as int? ?? 0;  // ✅ تم التصحيح
-        final newQuantity = currentQuantity - quantity;
-
-        if (newQuantity <= 0) {
-          // حذف السجل إذا أصبحت الكمية صفر أو أقل
-          await _supabase
-              .from('warehouse_stock')
-              .delete()
-              .eq('warehouse_id', warehouseId)
-              .eq('product_id', productId);
-        } else {
-          // تحديث الكمية
-          await _supabase
-              .from('warehouse_stock')
-              .update({
-                'current_quantity': newQuantity,  // ✅ تم التصحيح
-                'updated_at': DateTime.now().toIso8601String(),
-              })
-              .eq('warehouse_id', warehouseId)
-              .eq('product_id', productId);
-        }
-      }
-      // إذا لم يكن موجود، لا نفعل شيء (تجاهل الخطأ)
-    } catch (e) {
-      print('Warning: Could not reduce warehouse stock: $e');
-      // لا نرمي Exception هنا لتجنب توقف العملية
-    }
-  }
-
-  // مزامنة جميع سجلات Stock In الموجودة مع warehouse_stock
-  Future<void> syncExistingStockInRecords() async {
-    try {
-      // مسح جميع بيانات warehouse_stock 
-      await _supabase
+          .eq('product_id', productId);
+    } else if (isAddition) {
+      // إنشاء سجل جديد (فقط في حالة الإضافة)
+      await _client
           .from('warehouse_stock')
+          .insert({
+            'warehouse_id': warehouseId,
+            'product_id': productId,
+            'current_quantity': quantity,
+            'unit': unit,
+            // حذف created_at - سيتم إضافته تلقائياً من قاعدة البيانات
+          });
+    }
+  } catch (e) {
+    print('Error updating warehouse stock: $e');
+    // لا نرمي الخطأ حتى لا نوقف العملية الأساسية
+  }
+}
+  // Get Stock In Records with filters
+  // Get Stock In Records with filters
+Future<ApiResponse<List<StockIn>>> getStockInRecords({
+  String? searchTerm,
+  String? supplierId,
+  DateTime? startDate,
+  DateTime? endDate,
+  int limit = 50,
+  int offset = 0,
+}) async {
+  try {
+    // Build the query - تعديل الاستعلام
+    var query = _client
+        .from('stock_in')
+        .select('''
+          id,
+          record_id,
+          addition_number,
+          warehouse_id,
+          supplier_id,
+          date,
+          notes,
+          invoice_file_path,
+          created_at,
+          updated_at,
+          warehouses:warehouse_id(id, name),
+          suppliers:supplier_id(id, name)
+        ''');
+
+    // Apply filters
+    if (searchTerm != null && searchTerm.isNotEmpty) {
+      query = query.or('record_id.ilike.%$searchTerm%,addition_number.ilike.%$searchTerm%');
+    }
+
+    if (supplierId != null && supplierId.isNotEmpty) {
+      query = query.eq('supplier_id', supplierId);
+    }
+
+    if (startDate != null) {
+      query = query.gte('date', startDate.toIso8601String().split('T')[0]);
+    }
+
+    if (endDate != null) {
+      query = query.lte('date', endDate.toIso8601String().split('T')[0]);
+    }
+
+    // Execute query
+    final response = await query
+        .limit(limit)
+        .range(offset, offset + limit - 1)
+        .order('created_at', ascending: false);
+
+    print('Stock In Records Response: $response'); // للتشخيص
+
+    // Get stock_in_items for each record
+    List<StockIn> stockInList = [];
+    for (var record in response) {
+      try {
+        // Get items for this stock_in record with product names
+        final itemsResponse = await _client
+            .from('stock_in_items')
+            .select('''
+              product_id,
+              quantity,
+              unit,
+              products:product_id(id, name)
+            ''')
+            .eq('stock_in_id', record['id']);
+
+        print('Items Response for record ${record['id']}: $itemsResponse'); // للتشخيص
+
+        final products = itemsResponse.map((item) => StockInItem(
+          productId: item['product_id'] ?? '',
+          productName: item['products']?['name'] ?? 'Unknown Product',
+          quantity: (item['quantity'] ?? 0).toDouble(),
+          unit: item['unit'] ?? 'piece',
+        )).toList();
+
+        // Create StockIn object - معالجة آمنة للبيانات
+        final stockIn = StockIn(
+          id: record['id'],
+          recordId: record['record_id']?.toString() ?? '',
+          additionNumber: record['addition_number']?.toString() ?? '',
+          warehouseId: record['warehouse_id']?.toString() ?? '',
+          warehouseName: record['warehouses']?['name']?.toString() ?? 'Unknown Warehouse',
+          supplierId: record['supplier_id']?.toString() ?? '',
+          supplierName: record['suppliers']?['name']?.toString() ?? 'Unknown Supplier',
+          date: record['date'] != null 
+              ? DateTime.parse(record['date'].toString())
+              : DateTime.now(),
+          notes: record['notes']?.toString(),
+          invoiceFilePath: record['invoice_file_path']?.toString(),
+          products: products,
+          createdAt: record['created_at'] != null 
+              ? DateTime.parse(record['created_at'].toString()) 
+              : null,
+          updatedAt: record['updated_at'] != null 
+              ? DateTime.parse(record['updated_at'].toString()) 
+              : null,
+        );
+
+        stockInList.add(stockIn);
+      } catch (e) {
+        print('Error processing record ${record['id']}: $e');
+        // نكمل معالجة باقي السجلات حتى لو فشل واحد
+        continue;
+      }
+    }
+
+    return ApiResponse.success(stockInList);
+  } catch (e) {
+    print('Error in getStockInRecords: $e');
+    return ApiResponse.error('خطأ في تحميل البيانات: ${e.toString()}');
+  }
+}
+  // Update Stock In Record
+  Future<ApiResponse<Map<String, dynamic>>> updateStockInRecord(
+    int stockInId,
+    StockInRequest request,
+  ) async {
+    try {
+      // Update stock_in table
+      final stockInData = await _client
+          .from('stock_in')
+          .update({
+            'warehouse_id': request.warehouseId,
+            'supplier_id': request.supplierId,
+            'date': request.date.toIso8601String().split('T')[0],
+            'notes': request.notes,
+            'invoice_file_path': request.invoiceFilePath,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', stockInId)
+          .select()
+          .single();
+
+      // Delete existing items
+      await _client
+          .from('stock_in_items')
           .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000'); // حذف جميع السجلات
+          .eq('stock_in_id', stockInId);
 
-      // جلب جميع سجلات Stock In
-      final stockInRecords = await _supabase
-          .from('stock_in_records')
-          .select('warehouse_id, product_id, quantity, unit');
+      // Insert new items
+      if (request.products.isNotEmpty) {
+        final itemsData = request.products.map((product) => {
+          'stock_in_id': stockInId,
+          'product_id': product.productId,
+          'quantity': product.quantity,
+          'unit': product.unit,
+        }).toList();
 
-      // إعادة بناء warehouse_stock من سجلات Stock In
-      final warehouseStockMap = <String, Map<String, dynamic>>{};
-
-      for (final record in stockInRecords) {
-        final warehouseId = record['warehouse_id'] as String?;
-        final productId = record['product_id'] as String?;
-        final quantity = record['quantity'] as int? ?? 0;
-        final unit = record['unit'] as String? ?? 'PC';
-
-        if (warehouseId != null && productId != null) {
-          final key = '${warehouseId}_$productId';
-          
-          if (warehouseStockMap.containsKey(key)) {
-            // زيادة الكمية الموجودة
-            warehouseStockMap[key]!['current_quantity'] += quantity;  // ✅ تم التصحيح
-          } else {
-            // إنشاء سجل جديد
-            warehouseStockMap[key] = {
-              'warehouse_id': warehouseId,
-              'product_id': productId,
-              'current_quantity': quantity,  // ✅ تم التصحيح
-              'unit': unit,
-              'updated_at': DateTime.now().toIso8601String(),
-            };
-          }
-        }
+        await _client.from('stock_in_items').insert(itemsData);
       }
 
-      // إدراج البيانات المجمعة في warehouse_stock
-      if (warehouseStockMap.isNotEmpty) {
-        await _supabase
-            .from('warehouse_stock')
-            .insert(warehouseStockMap.values.toList());
-      }
-
-      print('Successfully synced ${warehouseStockMap.length} warehouse stock records');
+      return ApiResponse.success({
+        'success': true,
+        'message': 'تم تحديث السجل بنجاح',
+        'data': stockInData,
+      });
     } catch (e) {
-      throw Exception('Error syncing existing stock in records: $e');
+      return ApiResponse.error('خطأ: ${e.toString()}');
     }
   }
 
-  // ===============================
-  // تحديث الوظائف الأساسية لتتضمن تحديث المخزون
-  // ===============================
-
-  // إضافة سجل Stock In جديد مع تحديث المخزون
-  Future<void> addStockInRecordWithStock(StockInRecord record) async {
+  // Delete Stock In Record
+  Future<ApiResponse<Map<String, dynamic>>> deleteStockInRecord(
+    int stockInId,
+  ) async {
     try {
-      // إضافة سجل Stock In
-      await _supabase
-          .from('stock_in_records')
-          .insert(record.toJson());
-
-      // تحديث مخزون المخزن
-      if (record.warehouseId != null) {
-        await updateWarehouseStock(
-          warehouseId: record.warehouseId!,
-          productId: record.productId,
-          quantity: record.quantity,
-          unit: record.unit,
-        );
-      }
-    } catch (e) {
-      throw Exception('Error adding stock in record with stock update: $e');
-    }
-  }
-
-  // تحديث سجل Stock In مع تحديث المخزون
-  Future<void> updateStockInRecordWithStock(String id, StockInRecord oldRecord, StockInRecord newRecord) async {
-    try {
-      // تحديث سجل Stock In
-      await _supabase
-          .from('stock_in_records')
-          .update(newRecord.toJson())
-          .eq('id', id);
-
-      // تحديث المخزون - إزالة الكميات القديمة وإضافة الجديدة
-      if (oldRecord.warehouseId != null) {
-        await reduceWarehouseStock(
-          warehouseId: oldRecord.warehouseId!,
-          productId: oldRecord.productId,
-          quantity: oldRecord.quantity,
-        );
-      }
-
-      if (newRecord.warehouseId != null) {
-        await updateWarehouseStock(
-          warehouseId: newRecord.warehouseId!,
-          productId: newRecord.productId,
-          quantity: newRecord.quantity,
-          unit: newRecord.unit,
-        );
-      }
-    } catch (e) {
-      throw Exception('Error updating stock in record with stock update: $e');
-    }
-  }
-
-  // حذف سجل Stock In مع تحديث المخزون
-  Future<void> deleteStockInRecordWithStock(String id, StockInRecord record) async {
-    try {
-      // حذف سجل Stock In
-      await _supabase
-          .from('stock_in_records')
+      // Delete items first (foreign key constraint)
+      await _client
+          .from('stock_in_items')
           .delete()
-          .eq('id', id);
+          .eq('stock_in_id', stockInId);
 
-      // تقليل المخزون
-      if (record.warehouseId != null) {
-        await reduceWarehouseStock(
-          warehouseId: record.warehouseId!,
-          productId: record.productId,
-          quantity: record.quantity,
-        );
-      }
+      // Delete the main record
+      await _client
+          .from('stock_in')
+          .delete()
+          .eq('id', stockInId);
+
+      return ApiResponse.success({
+        'success': true,
+        'message': 'تم حذف السجل بنجاح',
+      });
     } catch (e) {
-      throw Exception('Error deleting stock in record with stock update: $e');
+      return ApiResponse.error('خطأ: ${e.toString()}');
     }
   }
 
-  // ===============================
-  // وظائف إدارة الفواتير الإلكترونية
-  // ===============================
-
-  // اختيار ملف PDF
-  Future<File?> pickPdfFile() async {
+  // Search Products
+  Future<ApiResponse<List<ProductSearchResult>>> searchProducts(
+    String searchTerm,
+  ) async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        allowMultiple: false,
-      );
+      // البحث مباشرة في جدول المنتجات
+      final response = await _client
+          .from('products')
+          .select('id, name, supplier, category_id')
+          .or('id.ilike.%$searchTerm%,name.ilike.%$searchTerm%,supplier.ilike.%$searchTerm%')
+          .limit(10)
+          .order('name');
 
-      if (result != null) {
-        String filePath = result.files.single.path!;
-        File file = File(filePath);
-        
-        // التحقق من وجود الملف
-        if (!await file.exists()) {
-          throw Exception('Selected file does not exist');
-        }
+      final productsList = response
+          .map((item) => ProductSearchResult.fromJson(item))
+          .toList();
+      
+      return ApiResponse.success(productsList);
+    } catch (e) {
+      print('Error in searchProducts: $e');
+      return ApiResponse.success(<ProductSearchResult>[]);
+    }
+  }
 
-        // التحقق من نوع الملف
-        String? mimeType = lookupMimeType(filePath);
-        if (mimeType != 'application/pdf') {
-          throw Exception('Please select a PDF file only');
-        }
+  // Search Suppliers
+  Future<ApiResponse<List<SupplierSearchResult>>> searchSuppliers(
+    String searchTerm,
+  ) async {
+    try {
+      // البحث مباشرة في جدول الموردين
+      final response = await _client
+          .from('suppliers')
+          .select('id, name, tax_number')
+          .or('name.ilike.%$searchTerm%,tax_number.ilike.%$searchTerm%')
+          .limit(10)
+          .order('name');
 
-        // التحقق من حجم الملف (حد أقصى 10MB)
-        int fileSize = await file.length();
-        if (fileSize > 10 * 1024 * 1024) { // 10MB
-          throw Exception('File size must be less than 10MB');
-        }
+      final suppliersList = response
+          .map((item) => SupplierSearchResult.fromJson(item))
+          .toList();
+      
+      return ApiResponse.success(suppliersList);
+    } catch (e) {
+      print('Error in searchSuppliers: $e');
+      return ApiResponse.success(<SupplierSearchResult>[]);
+    }
+  }
 
-        return file;
+  // Get Warehouses for dropdown
+  Future<ApiResponse<List<Map<String, dynamic>>>> getWarehouses() async {
+    try {
+      final response = await _client
+          .from('warehouses')
+          .select('id, name, code')
+          .order('name');
+
+      return ApiResponse.success(response);
+    } catch (e) {
+      return ApiResponse.error('خطأ: ${e.toString()}');
+    }
+  }
+
+  // Upload Invoice File
+  Future<ApiResponse<String>> uploadInvoiceFile(
+    String fileName,
+    List<int> fileBytes,
+  ) async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        return ApiResponse.error('المستخدم غير مصرح له');
       }
+
+      final filePath = 'invoices/${user.id}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      
+      await _client.storage
+          .from('documents')
+          .uploadBinary(filePath, Uint8List.fromList(fileBytes));
+
+      final publicUrl = _client.storage
+          .from('documents')
+          .getPublicUrl(filePath);
+
+      return ApiResponse.success(publicUrl);
+    } catch (e) {
+      return ApiResponse.error('خطأ في رفع الملف: ${e.toString()}');
+    }
+  }
+
+  // Download Invoice File
+  Future<ApiResponse<List<int>>> downloadInvoiceFile(String filePath) async {
+    try {
+      final response = await _client.storage
+          .from('documents')
+          .download(filePath);
+
+      return ApiResponse.success(response);
+    } catch (e) {
+      return ApiResponse.error('خطأ في تحميل الملف: ${e.toString()}');
+    }
+  }
+}
+
+// Stock In Controller for State Management
+class StockInController {
+  static final StockInController _instance = StockInController._internal();
+  factory StockInController() => _instance;
+  StockInController._internal();
+
+  final StockInService _service = StockInService();
+  
+  // State variables
+  List<StockIn> _stockInRecords = [];
+  List<ProductSearchResult> _searchedProducts = [];
+  List<SupplierSearchResult> _searchedSuppliers = [];
+  List<Map<String, dynamic>> _warehouses = [];
+  
+  bool _isLoading = false;
+  String? _error;
+
+  // Getters
+  List<StockIn> get stockInRecords => _stockInRecords;
+  List<ProductSearchResult> get searchedProducts => _searchedProducts;
+  List<SupplierSearchResult> get searchedSuppliers => _searchedSuppliers;
+  List<Map<String, dynamic>> get warehouses => _warehouses;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
+  // Load Stock In Records
+  Future<bool> loadStockInRecords({
+    String? searchTerm,
+    String? supplierId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    _isLoading = true;
+    _error = null;
+
+    final response = await _service.getStockInRecords(
+      searchTerm: searchTerm,
+      supplierId: supplierId,
+      startDate: startDate,
+      endDate: endDate,
+      limit: limit,
+      offset: offset,
+    );
+
+    _isLoading = false;
+
+    if (response.success) {
+      _stockInRecords = response.data ?? [];
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Create Stock In Record
+  Future<bool> createStockInRecord(StockInRequest request) async {
+    _isLoading = true;
+    _error = null;
+
+    final response = await _service.createStockInRecord(request);
+
+    _isLoading = false;
+
+    if (response.success) {
+      // Reload records to get the new one
+      await loadStockInRecords();
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Update Stock In Record
+  Future<bool> updateStockInRecord(int stockInId, StockInRequest request) async {
+    _isLoading = true;
+    _error = null;
+
+    final response = await _service.updateStockInRecord(stockInId, request);
+
+    _isLoading = false;
+
+    if (response.success) {
+      // Reload records to get the updated one
+      await loadStockInRecords();
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Delete Stock In Record
+  Future<bool> deleteStockInRecord(int stockInId) async {
+    _isLoading = true;
+    _error = null;
+
+    final response = await _service.deleteStockInRecord(stockInId);
+
+    _isLoading = false;
+
+    if (response.success) {
+      // Remove from local list
+      _stockInRecords.removeWhere((record) => record.id == stockInId);
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Search Products
+  Future<bool> searchProducts(String searchTerm) async {
+    if (searchTerm.isEmpty) {
+      _searchedProducts = [];
+      return true;
+    }
+
+    final response = await _service.searchProducts(searchTerm);
+
+    if (response.success) {
+      _searchedProducts = response.data ?? [];
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Search Suppliers
+  Future<bool> searchSuppliers(String searchTerm) async {
+    if (searchTerm.isEmpty) {
+      _searchedSuppliers = [];
+      return true;
+    }
+
+    final response = await _service.searchSuppliers(searchTerm);
+
+    if (response.success) {
+      _searchedSuppliers = response.data ?? [];
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Load Warehouses
+  Future<bool> loadWarehouses() async {
+    final response = await _service.getWarehouses();
+
+    if (response.success) {
+      _warehouses = response.data ?? [];
+      return true;
+    } else {
+      _error = response.error;
+      return false;
+    }
+  }
+
+  // Upload Invoice File
+  Future<String?> uploadInvoiceFile(String fileName, List<int> fileBytes) async {
+    _isLoading = true;
+    _error = null;
+
+    final response = await _service.uploadInvoiceFile(fileName, fileBytes);
+
+    _isLoading = false;
+
+    if (response.success) {
+      return response.data;
+    } else {
+      _error = response.error;
       return null;
-    } catch (e) {
-      throw Exception('Error picking file: $e');
     }
   }
 
-  // رفع الفاتورة الإلكترونية
-  Future<Map<String, dynamic>> uploadElectronicInvoice({
-    required File file,
-    required String recordId,
-  }) async {
-    try {
-      // إنشاء اسم ملف فريد
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final extension = path.extension(file.path);
-      final fileName = '${recordId}_$timestamp$extension';
-      
-      // مسار الرفع بتنسيق سنة/شهر
-      final now = DateTime.now();
-      final year = now.year.toString();
-      final month = now.month.toString().padLeft(2, '0');
-      final uploadPath = 'electronic_invoices/$year/$month/$fileName';
+  // Download Invoice File
+  Future<List<int>?> downloadInvoiceFile(String filePath) async {
+    _isLoading = true;
+    _error = null;
 
-      print('Uploading file to: $uploadPath'); // للتصحيح
+    final response = await _service.downloadInvoiceFile(filePath);
 
-      // رفع الملف إلى Supabase Storage
-      await _supabase.storage
-          .from('invoices')
-          .upload(uploadPath, file);
+    _isLoading = false;
 
-      // الحصول على رابط الملف العام
-      final publicUrl = _supabase.storage
-          .from('invoices')
-          .getPublicUrl(uploadPath);
-
-      // معلومات الملف
-      final fileSize = await file.length();
-      final originalFileName = path.basename(file.path);
-
-      print('File uploaded successfully: $publicUrl'); // للتصحيح
-
-      return {
-        'url': publicUrl,
-        'fileName': originalFileName,
-        'fileSize': fileSize,
-        'uploadPath': uploadPath,
-        'uploadedAt': DateTime.now().toIso8601String(),
-      };
-    } catch (e) {
-      throw Exception('Error uploading electronic invoice: $e');
+    if (response.success) {
+      return response.data;
+    } else {
+      _error = response.error;
+      return null;
     }
   }
 
-  // حذف الفاتورة الإلكترونية
-  Future<void> deleteElectronicInvoice(String fileUrl) async {
-    try {
-      // استخراج مسار الملف من الـ URL
-      final uri = Uri.parse(fileUrl);
-      final pathSegments = uri.pathSegments;
-      
-      // البحث عن مسار الملف بعد /storage/v1/object/public/invoices/
-      final invoicesIndex = pathSegments.indexOf('invoices');
-      if (invoicesIndex != -1 && invoicesIndex < pathSegments.length - 1) {
-        final filePath = pathSegments.sublist(invoicesIndex + 1).join('/');
-        
-        print('Deleting file from path: $filePath'); // للتصحيح
-        
-        // حذف الملف من Storage
-        await _supabase.storage
-            .from('invoices')
-            .remove([filePath]);
-            
-        print('File deleted successfully'); // للتصحيح
-      } else {
-        throw Exception('Invalid file URL format');
-      }
-    } catch (e) {
-      throw Exception('Error deleting electronic invoice: $e');
-    }
+  // Clear error
+  void clearError() {
+    _error = null;
   }
 
-  // تحديث بيانات الفاتورة في قاعدة البيانات
-  Future<void> updateElectronicInvoiceInfo({
-    required String recordId,
-    required String invoiceUrl,
-    required String fileName,
-    required int fileSize,
-  }) async {
-    try {
-      await _supabase
-          .from('stock_in_records')
-          .update({
-            'electronic_invoice_url': invoiceUrl,
-            'invoice_file_name': fileName,
-            'invoice_file_size': fileSize,
-            'invoice_uploaded_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', recordId);
-    } catch (e) {
-      throw Exception('Error updating invoice info: $e');
-    }
-  }
-
-  // إزالة بيانات الفاتورة من قاعدة البيانات
-  Future<void> removeElectronicInvoiceInfo(String recordId) async {
-    try {
-      await _supabase
-          .from('stock_in_records')
-          .update({
-            'electronic_invoice_url': null,
-            'invoice_file_name': null,
-            'invoice_file_size': null,
-            'invoice_uploaded_at': null,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', recordId);
-    } catch (e) {
-      throw Exception('Error removing invoice info: $e');
-    }
-  }
-
-  // رفع فاتورة إلكترونية (وظيفة شاملة)
-  Future<String> uploadInvoiceComplete({
-    required String recordId,
-    required File file,
-  }) async {
-    try {
-      // رفع الملف
-      final uploadResult = await uploadElectronicInvoice(
-        file: file,
-        recordId: recordId,
-      );
-
-      // تحديث قاعدة البيانات
-      await updateElectronicInvoiceInfo(
-        recordId: recordId,
-        invoiceUrl: uploadResult['url'],
-        fileName: uploadResult['fileName'],
-        fileSize: uploadResult['fileSize'],
-      );
-
-      return uploadResult['url'];
-    } catch (e) {
-      throw Exception('Error in complete invoice upload: $e');
-    }
-  }
-
-  // حذف فاتورة إلكترونية (وظيفة شاملة)
-  Future<void> deleteInvoiceComplete({
-    required String recordId,
-    required String fileUrl,
-  }) async {
-    try {
-      // حذف الملف من Storage
-      await deleteElectronicInvoice(fileUrl);
-
-      // إزالة بيانات الفاتورة من قاعدة البيانات
-      await removeElectronicInvoiceInfo(recordId);
-    } catch (e) {
-      throw Exception('Error in complete invoice deletion: $e');
-    }
-  }
-
-  // التحقق من صيغة وحجم الملف
-  String? validatePdfFile(File file) {
-    try {
-      // التحقق من الامتداد
-      String extension = path.extension(file.path).toLowerCase();
-      if (extension != '.pdf') {
-        return 'Please select a PDF file only';
-      }
-
-      // التحقق من نوع الملف
-      String? mimeType = lookupMimeType(file.path);
-      if (mimeType != 'application/pdf') {
-        return 'Invalid file format. Please select a valid PDF file';
-      }
-
-      return null; // الملف صحيح
-    } catch (e) {
-      return 'Error validating file: $e';
-    }
-  }
-
-  // التحقق من حجم الملف بشكل منفصل
-  Future<String?> validateFileSize(File file, {int maxSizeMB = 10}) async {
-    try {
-      int fileSize = await file.length();
-      int maxSizeBytes = maxSizeMB * 1024 * 1024;
-      
-      if (fileSize > maxSizeBytes) {
-        return 'File size (${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB) exceeds the maximum allowed size of $maxSizeMB MB';
-      }
-
-      return null; // الحجم مناسب
-    } catch (e) {
-      return 'Error checking file size: $e';
-    }
-  }
-
-  // تحميل الفاتورة الإلكترونية
-  Future<bool> downloadElectronicInvoice({
-    required String invoiceUrl,
-    required String fileName,
-  }) async {
-    try {
-      // التحقق من صحة الرابط
-      final Uri url = Uri.parse(invoiceUrl);
-      
-      // التحقق من إمكانية فتح الرابط
-      if (await canLaunchUrl(url)) {
-        // محاولة فتح الرابط في المتصفح الخارجي أولاً
-        bool launched = await launchUrl(
-          url,
-          mode: LaunchMode.externalApplication,
-        );
-        
-        // إذا فشل، جرب فتحه في WebView داخلي
-        if (!launched) {
-          launched = await launchUrl(
-            url,
-            mode: LaunchMode.inAppWebView,
-          );
-        }
-        
-        // إذا فشل، جرب الطريقة العادية
-        if (!launched) {
-          launched = await launchUrl(url);
-        }
-        
-        if (launched) {
-          print('Invoice opened successfully: $invoiceUrl'); // للتصحيح
-          return true;
-        } else {
-          throw Exception('Failed to launch URL after multiple attempts');
-        }
-      } else {
-        throw Exception('Cannot launch URL: $invoiceUrl');
-      }
-    } catch (e) {
-      print('Error downloading electronic invoice: $e'); // للتصحيح
-      throw Exception('فشل في فتح الفاتورة. تأكد من وجود متصفح على الجهاز أو اتصال الإنترنت');
-    }
+  // Reset search results
+  void clearSearchResults() {
+    _searchedProducts = [];
+    _searchedSuppliers = [];
   }
 }
