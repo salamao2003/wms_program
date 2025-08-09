@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../backend/stock_in_logic.dart';
 import '../l10n/app_localizations.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
+import 'package:url_launcher/url_launcher.dart';
+ import 'package:flutter/services.dart';
 
 class StockInScreen extends StatefulWidget {
   const StockInScreen({super.key});
@@ -550,12 +554,62 @@ class _StockInScreenState extends State<StockInScreen> {
                         tooltip: 'حذف',
                       ),
                       // Download button
-                      if (stockIn.invoiceFilePath != null)
-                        IconButton(
-                          icon: const Icon(Icons.download, color: Colors.green, size: 18),
-                          onPressed: () => _downloadInvoice(stockIn),
-                          tooltip: 'تحميل الفاتورة',
-                        ),
+                     // في _buildTableRows() - عدّل زر التحميل
+if (stockIn.invoiceFilePath != null)
+  PopupMenuButton<String>(
+    onSelected: (value) async {
+      if (value == 'open') {
+        await _openInvoiceInNewTab(stockIn);
+      } else if (value == 'copy') {
+        await _copyInvoiceLink(stockIn);
+      }
+    },
+    itemBuilder: (context) => [
+      const PopupMenuItem(
+        value: 'open',
+        child: Row(
+          children: [
+            Icon(Icons.open_in_new, color: Colors.blue, size: 18),
+            SizedBox(width: 8),
+            Text('فتح في تبويب جديد'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'copy',
+        child: Row(
+          children: [
+            Icon(Icons.copy, color: Colors.green, size: 18),
+            SizedBox(width: 8),
+            Text('نسخ الرابط'),
+          ],
+        ),
+      ),
+    ],
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.picture_as_pdf, color: Colors.green, size: 16),
+          SizedBox(width: 4),
+          Text(
+            'PDF',
+            style: TextStyle(
+              color: Colors.green,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
+    tooltip: 'الفاتورة',
+  ),
                       // Print button
                       IconButton(
                         icon: const Icon(Icons.print, color: Colors.purple, size: 18),
@@ -598,12 +652,62 @@ class _StockInScreenState extends State<StockInScreen> {
                       onPressed: () => _confirmDeleteStockIn(stockIn),
                       tooltip: 'حذف',
                     ),
-                    if (stockIn.invoiceFilePath != null)
-                      IconButton(
-                        icon: const Icon(Icons.download, color: Colors.green, size: 18),
-                        onPressed: () => _downloadInvoice(stockIn),
-                        tooltip: 'تحميل الفاتورة',
-                      ),
+                   // في _buildTableRows() - عدّل زر التحميل
+if (stockIn.invoiceFilePath != null)
+  PopupMenuButton<String>(
+    onSelected: (value) async {
+      if (value == 'open') {
+        await _openInvoiceInNewTab(stockIn);
+      } else if (value == 'copy') {
+        await _copyInvoiceLink(stockIn);
+      }
+    },
+    itemBuilder: (context) => [
+      const PopupMenuItem(
+        value: 'open',
+        child: Row(
+          children: [
+            Icon(Icons.open_in_new, color: Colors.blue, size: 18),
+            SizedBox(width: 8),
+            Text('فتح في تبويب جديد'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'copy',
+        child: Row(
+          children: [
+            Icon(Icons.copy, color: Colors.green, size: 18),
+            SizedBox(width: 8),
+            Text('نسخ الرابط'),
+          ],
+        ),
+      ),
+    ],
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.picture_as_pdf, color: Colors.green, size: 16),
+          SizedBox(width: 4),
+          Text(
+            'PDF',
+            style: TextStyle(
+              color: Colors.green,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
+    tooltip: 'الفاتورة',
+  ),
                     IconButton(
                       icon: const Icon(Icons.print, color: Colors.purple, size: 18),
                       onPressed: () => _printStockIn(stockIn),
@@ -719,35 +823,153 @@ class _StockInScreenState extends State<StockInScreen> {
     }
   }
 
-  Future<void> _downloadInvoice(StockIn stockIn) async {
-    if (stockIn.invoiceFilePath == null) return;
+  
+
+Future<void> _downloadInvoice(StockIn stockIn) async {
+  if (stockIn.invoiceFilePath == null) return;
+  
+  try {
+    // فتح الرابط في تبويب جديد
+    final Uri url = Uri.parse(stockIn.invoiceFilePath!);
     
-    try {
-      final fileBytes = await _stockInController.downloadInvoiceFile(stockIn.invoiceFilePath!);
-      if (fileBytes != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحميل الفاتورة بنجاح')),
-        );
-        // هنا يمكن حفظ الملف أو فتحه
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('فشل في تحميل الفاتورة: ${_stockInController.error}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
+    if (await canLaunchUrl(url)) {
+      await launchUrl(
+        url,
+        webOnlyWindowName: '_blank', // فتح في تبويب جديد
+      );
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطأ: ${e.toString()}'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('تم فتح الفاتورة في تبويب جديد'),
+            backgroundColor: Colors.green,
           ),
         );
       }
+    } else {
+      // إذا فشل فتح الرابط، نحاول طريقة بديلة
+      _openInNewTabAlternative(stockIn.invoiceFilePath!);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ في فتح الفاتورة: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
+
+// طريقة بديلة باستخدام dart:html (للويب فقط)
+void _openInNewTabAlternative(String url) {
+  // استخدم هذا الكود فقط إذا كنت تستهدف الويب
+  // import 'dart:html' as html;
+  // html.window.open(url, '_blank');
+  
+  // أو يمكنك نسخ الرابط للحافظة
+  _copyToClipboard(url);
+}
+
+// دالة نسخ الرابط للحافظة
+void _copyToClipboard(String url) {
+ 
+  
+  Clipboard.setData(ClipboardData(text: url));
+  
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('تم نسخ رابط الفاتورة'),
+            const SizedBox(height: 4),
+            Text(
+              'الصق الرابط في متصفحك لتحميل الفاتورة',
+              style: TextStyle(fontSize: 12, color: Colors.white70),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'فتح',
+          textColor: Colors.white,
+          onPressed: () async {
+            final Uri uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, webOnlyWindowName: '_blank');
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// فتح الفاتورة في تبويب جديد
+Future<void> _openInvoiceInNewTab(StockIn stockIn) async {
+  if (stockIn.invoiceFilePath == null) return;
+  
+  try {
+    final Uri url = Uri.parse(stockIn.invoiceFilePath!);
+    
+    if (await canLaunchUrl(url)) {
+      await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication, // يفتح في المتصفح
+        webOnlyWindowName: '_blank',
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم فتح الفاتورة في تبويب جديد'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      throw 'لا يمكن فتح الرابط';
+    }
+  } catch (e) {
+    if (mounted) {
+      // إذا فشل، انسخ الرابط
+      await _copyInvoiceLink(stockIn);
+    }
+  }
+}
+
+// نسخ رابط الفاتورة
+Future<void> _copyInvoiceLink(StockIn stockIn) async {
+  if (stockIn.invoiceFilePath == null) return;
+  
+  await Clipboard.setData(ClipboardData(text: stockIn.invoiceFilePath!));
+  
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('تم نسخ رابط الفاتورة - الصقه في متصفحك'),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'فتح الآن',
+          textColor: Colors.white,
+          onPressed: () async {
+            final Uri url = Uri.parse(stockIn.invoiceFilePath!);
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, webOnlyWindowName: '_blank');
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
 
   Future<void> _printStockIn(StockIn stockIn) async {
     // سيتم تطبيقها لاحقاً
@@ -806,7 +1028,10 @@ class _StockInFormDialogState extends State<StockInFormDialog> {
   String? _selectedFileName;
   
   bool _isLoading = false;
-  
+  // إضافة متغيرات للملف
+Uint8List? _invoiceFileBytes;
+String? _invoiceFileName;
+String? _uploadedInvoiceUrl;
   @override
   void initState() {
     super.initState();
@@ -1412,89 +1637,117 @@ class _StockInFormDialogState extends State<StockInFormDialog> {
   }
 
   Widget _buildInvoiceUploadSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.upload_file, color: Colors.purple),
-                const SizedBox(width: 8),
-                const Text(
-                  'رفع الفاتورة',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple,
-                  ),
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.upload_file, color: Colors.purple),
+              const SizedBox(width: 8),
+              const Text(
+                'رفع الفاتورة',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple,
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.withOpacity(0.5)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.picture_as_pdf, color: Colors.red),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _selectedFileName ?? 'لم يتم اختيار ملف',
-                            style: TextStyle(
-                              color: _selectedFileName != null 
-                                  ? Colors.black 
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _pickInvoiceFile,
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('اختيار ملف'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                if (_selectedFileName != null) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _removeInvoiceFile,
-                    icon: const Icon(Icons.clear, color: Colors.red),
-                    tooltip: 'إزالة الملف',
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'يُفضل رفع ملفات PDF فقط',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _uploadedInvoiceUrl != null 
+                          ? Colors.green.withOpacity(0.5)
+                          : Colors.grey.withOpacity(0.5),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    color: _uploadedInvoiceUrl != null 
+                        ? Colors.green.withOpacity(0.05)
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.picture_as_pdf, 
+                        color: _uploadedInvoiceUrl != null ? Colors.green : Colors.red,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedFileName ?? 'لم يتم اختيار ملف',
+                              style: TextStyle(
+                                color: _selectedFileName != null 
+                                    ? Colors.black 
+                                    : Colors.grey,
+                              ),
+                            ),
+                            if (_uploadedInvoiceUrl != null)
+                              const Text(
+                                'تم الرفع بنجاح ✓',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (_isLoading)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _isLoading ? null : _pickInvoiceFile,
+                icon: const Icon(Icons.folder_open),
+                label: Text(_selectedFileName != null ? 'تغيير الملف' : 'اختيار ملف'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              if (_selectedFileName != null) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _removeInvoiceFile,
+                  icon: const Icon(Icons.clear, color: Colors.red),
+                  tooltip: 'إزالة الملف',
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'يُسمح برفع ملفات PDF فقط (حجم أقصى 10 ميجا)',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
-
+    ),
+  );
+}
   // Search methods
   void _searchProductById(String value, int index) {
     // Cancel previous timer if exists
@@ -1688,18 +1941,89 @@ class _StockInFormDialogState extends State<StockInFormDialog> {
   }
 
   Future<void> _pickInvoiceFile() async {
-    // سيتم تطبيق file picker لاحقاً
-    setState(() {
-      _selectedFileName = 'sample_invoice.pdf';
-    });
-  }
+  try {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true, // مهم للحصول على bytes الملف
+    );
 
-  void _removeInvoiceFile() {
+    if (result != null && result.files.single.bytes != null) {
+      setState(() {
+        _invoiceFileBytes = result.files.single.bytes!;
+        _invoiceFileName = result.files.single.name;
+        _selectedFileName = result.files.single.name;
+      });
+      
+      // رفع الملف مباشرة
+      await _uploadInvoice();
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ في اختيار الملف: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+// دالة رفع الفاتورة
+Future<void> _uploadInvoice() async {
+  if (_invoiceFileBytes == null || _invoiceFileName == null) return;
+  
+  setState(() {
+    _isLoading = true;
+  });
+  
+  try {
+    final url = await widget.stockInController.uploadInvoiceFile(
+      _invoiceFileName!,
+      _invoiceFileBytes!,
+    );
+    
+    if (url != null) {
+      setState(() {
+        _uploadedInvoiceUrl = url;
+        _invoiceFilePath = url;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم رفع الفاتورة بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ في رفع الفاتورة: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
     setState(() {
-      _selectedFileName = null;
-      _invoiceFilePath = null;
+      _isLoading = false;
     });
   }
+}
+
+ void _removeInvoiceFile() {
+  setState(() {
+    _selectedFileName = null;
+    _invoiceFilePath = null;
+    _invoiceFileBytes = null;
+    _invoiceFileName = null;
+    _uploadedInvoiceUrl = null;
+  });
+}
 
   Future<void> _saveStockIn() async {
     if (!_formKey.currentState!.validate()) return;

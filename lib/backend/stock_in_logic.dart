@@ -656,43 +656,80 @@ Future<ApiResponse<List<StockIn>>> getStockInRecords({
 
   // Upload Invoice File
   Future<ApiResponse<String>> uploadInvoiceFile(
-    String fileName,
-    List<int> fileBytes,
-  ) async {
-    try {
-      final user = _client.auth.currentUser;
-      if (user == null) {
-        return ApiResponse.error('المستخدم غير مصرح له');
-      }
-
-      final filePath = 'invoices/${user.id}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-      
-      await _client.storage
-          .from('documents')
-          .uploadBinary(filePath, Uint8List.fromList(fileBytes));
-
-      final publicUrl = _client.storage
-          .from('documents')
-          .getPublicUrl(filePath);
-
-      return ApiResponse.success(publicUrl);
-    } catch (e) {
-      return ApiResponse.error('خطأ في رفع الملف: ${e.toString()}');
+  String fileName,
+  Uint8List fileBytes,
+) async {
+  try {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      return ApiResponse.error('المستخدم غير مصرح له');
     }
-  }
 
+    // إنشاء مسار فريد للملف
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final filePath = '${user.id}/${timestamp}_$fileName';
+    
+    // رفع الملف إلى Supabase Storage
+    await _client.storage
+        .from('invoices')
+        .uploadBinary(
+          filePath,
+          fileBytes,
+          fileOptions: const FileOptions(
+            contentType: 'application/pdf',
+            upsert: true,
+          ),
+        );
+
+    // الحصول على الرابط العام للملف
+    final publicUrl = _client.storage
+        .from('invoices')
+        .getPublicUrl(filePath);
+
+    return ApiResponse.success(publicUrl);
+  } catch (e) {
+    print('Error uploading invoice: $e');
+    return ApiResponse.error('خطأ في رفع الفاتورة: ${e.toString()}');
+  }
+}
   // Download Invoice File
-  Future<ApiResponse<List<int>>> downloadInvoiceFile(String filePath) async {
-    try {
-      final response = await _client.storage
-          .from('documents')
-          .download(filePath);
-
-      return ApiResponse.success(response);
-    } catch (e) {
-      return ApiResponse.error('خطأ في تحميل الملف: ${e.toString()}');
+  Future<ApiResponse<Uint8List>> downloadInvoiceFile(String filePath) async {
+  try {
+    // استخراج المسار من الرابط الكامل إذا لزم
+    String cleanPath = filePath;
+    if (filePath.contains('/storage/v1/object/public/invoices/')) {
+      cleanPath = filePath.split('/storage/v1/object/public/invoices/').last;
     }
+
+    final response = await _client.storage
+        .from('invoices')
+        .download(cleanPath);
+
+    return ApiResponse.success(response);
+  } catch (e) {
+    print('Error downloading invoice: $e');
+    return ApiResponse.error('خطأ في تحميل الفاتورة: ${e.toString()}');
   }
+}
+
+// Delete Invoice File from Supabase Storage
+Future<ApiResponse<bool>> deleteInvoiceFile(String filePath) async {
+  try {
+    String cleanPath = filePath;
+    if (filePath.contains('/storage/v1/object/public/invoices/')) {
+      cleanPath = filePath.split('/storage/v1/object/public/invoices/').last;
+    }
+
+    await _client.storage
+        .from('invoices')
+        .remove([cleanPath]);
+
+    return ApiResponse.success(true);
+  } catch (e) {
+    print('Error deleting invoice: $e');
+    return ApiResponse.error('خطأ في حذف الفاتورة: ${e.toString()}');
+  }
+}
 }
 
 // Stock In Controller for State Management
@@ -858,40 +895,39 @@ class StockInController {
     }
   }
 
-  // Upload Invoice File
-  Future<String?> uploadInvoiceFile(String fileName, List<int> fileBytes) async {
-    _isLoading = true;
-    _error = null;
+ // Upload Invoice File
+Future<String?> uploadInvoiceFile(String fileName, Uint8List fileBytes) async {
+  _isLoading = true;
+  _error = null;
 
-    final response = await _service.uploadInvoiceFile(fileName, fileBytes);
+  final response = await _service.uploadInvoiceFile(fileName, fileBytes);
 
-    _isLoading = false;
+  _isLoading = false;
 
-    if (response.success) {
-      return response.data;
-    } else {
-      _error = response.error;
-      return null;
-    }
+  if (response.success) {
+    return response.data;
+  } else {
+    _error = response.error;
+    return null;
   }
+}
 
   // Download Invoice File
-  Future<List<int>?> downloadInvoiceFile(String filePath) async {
-    _isLoading = true;
-    _error = null;
+Future<Uint8List?> downloadInvoiceFile(String filePath) async {
+  _isLoading = true;
+  _error = null;
 
-    final response = await _service.downloadInvoiceFile(filePath);
+  final response = await _service.downloadInvoiceFile(filePath);
 
-    _isLoading = false;
+  _isLoading = false;
 
-    if (response.success) {
-      return response.data;
-    } else {
-      _error = response.error;
-      return null;
-    }
+  if (response.success) {
+    return response.data;
+  } else {
+    _error = response.error;
+    return null;
   }
-
+}
   // Clear error
   void clearError() {
     _error = null;
