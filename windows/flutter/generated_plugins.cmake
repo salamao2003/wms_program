@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   flutter_localization
   permission_handler_windows
+  printing
   url_launcher_windows
 )
 

@@ -6,7 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import 'package:url_launcher/url_launcher.dart';
  import 'package:flutter/services.dart';
-
+import 'package:warehouse_management_system/screens/print_invoice_screen.dart';
 class StockInScreen extends StatefulWidget {
   const StockInScreen({super.key});
 
@@ -972,9 +972,18 @@ Future<void> _copyInvoiceLink(StockIn stockIn) async {
 }
 
   Future<void> _printStockIn(StockIn stockIn) async {
-    // سيتم تطبيقها لاحقاً
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('وظيفة الطباعة ستتم إضافتها لاحقاً')),
+    // اجمع كل السجلات اللي لها نفس رقم الإضافة
+    final grouped = _stockInRecords
+        .where((r) => r.additionNumber == stockIn.additionNumber)
+        .toList();
+
+    if (grouped.isEmpty) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PrintInvoiceScreen(records: grouped),
+      ),
     );
   }
 
