@@ -31,10 +31,20 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // Controller for horizontal scrolling of the overview table
+  final ScrollController _overviewHScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     _loadWarehouses();
+  }
+
+  @override
+  void dispose() {
+    // dispose controllers
+    _overviewHScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadWarehouses() async {
@@ -172,6 +182,19 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
             label: Text(localizations?.addWarehouse ?? 'Add Warehouse'),
           ),
           const SizedBox(width: 16),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              setState(() {
+                _isLoading = true;
+              });
+              await _loadWarehouses();
+              setState(() {
+                _isLoading = false;
+              });
+            },
+            tooltip: 'تحديث البيانات',
+          ),
         ],
       ),
       body: Padding(
@@ -395,21 +418,16 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                                   const SizedBox(width: 16),
                                   _buildStatCard('Total Warehouses', _overviewStats['totalWarehouses']?.toString() ?? '0', Icons.warehouse, Colors.green),
                                   const SizedBox(width: 16),
-                                  _buildStatCard('Total Stock', _overviewStats['totalStock']?.toString() ?? '0', Icons.storage, Colors.orange),
-                                  const SizedBox(width: 16),            
+                                              
                                 ],
                               ),
                               const SizedBox(height: 16),
                             ],
+                            // Table area: render selected table and ensure horizontal scrolling
                             Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: SingleChildScrollView(
-                                  child: _isOverviewSelected 
-                                    ? _buildEnhancedOverviewDataTable(localizations)
-                                    : _buildWarehouseDataTable(localizations),
-                                ),
-                              ),
+                              child: _isOverviewSelected
+                                  ? _buildEnhancedOverviewDataTable(localizations)
+                                  : _buildWarehouseDataTable(localizations),
                             ),
                           ],
                         ),
@@ -639,152 +657,185 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       numeric: true,
     ));
     
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DataTable(
-        columnSpacing: 16,
-        horizontalMargin: 16,
-        headingRowColor: MaterialStateProperty.all(
-          Theme.of(context).primaryColor.withOpacity(0.1),
-        ),
-        columns: columns,
-        rows: _enhancedOverviewData.map((item) {
-          final List<DataCell> cells = [
-            // Product ID cell
-            DataCell(
-              SizedBox(
-                width: 100,
-                child: Text(
-                  item.productId,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-            ),
-            // Product Name cell
-            DataCell(
-              SizedBox(
-                width: 150,
-                child: Tooltip(
-                  message: item.productName,
-                  child: Text(
-                    item.productName,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Category cell
-            DataCell(
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getCategoryColor(item.categoryName).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _getCategoryColor(item.categoryName).withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  item.categoryName,
-                  style: TextStyle(
-                    color: _getCategoryColor(item.categoryName),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ];
-          
-          // Add warehouse stock cells (Quantity + Unit for each warehouse)
-          for (final warehouseColumn in _warehouseColumns) {
-            final stock = item.getStockForWarehouse(warehouseColumn.warehouseId);
-            final quantity = stock?.quantity ?? 0;
-            final unit = stock?.unit ?? 'PC';
-            
-            // Quantity cell
-            cells.add(DataCell(
-              Container(
-                width: 80,
-                alignment: Alignment.center,
-                child: Text(
-                  quantity.toString(),
-                  style: TextStyle(
-                    color: quantity > 0 ? Colors.green[700] : Colors.grey[500],
-                    fontWeight: quantity > 0 ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ));
-            
-            // Unit cell
-            cells.add(DataCell(
-              Container(
-                width: 60,
-                alignment: Alignment.center,
-                child: Text(
-                  unit,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: quantity > 0 ? Colors.blue[600] : Colors.grey[400],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ));
-          }
-          
-          // Add total cell
-          cells.add(DataCell(
-            Container(
-              alignment: Alignment.center,
+    // Wrap the DataTable in a horizontal scroll with a minimum width so the last column never gets clipped
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Column width plan
+        const double idW = 100;
+        const double nameW = 220;
+        const double categoryW = 120;
+        const double qtyW = 90;
+        const double unitW = 60;
+        const double totalW = 110;
+
+        final int dynamicPairs = _warehouseColumns.length; // each has Qty + Unit
+        final double minWidth = idW + nameW + categoryW + (dynamicPairs * (qtyW + unitW)) + totalW;
+        final double tableMinWidth = minWidth > constraints.maxWidth ? minWidth : constraints.maxWidth;
+
+        return Scrollbar(
+          controller: _overviewHScrollController,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            controller: _overviewHScrollController,
+            primary: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: tableMinWidth),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: item.totalQuantity > 0 
-                    ? Colors.blue[100] 
-                    : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  item.totalQuantity.toString(),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: item.totalQuantity > 0 
-                      ? Colors.blue[800] 
-                      : Colors.grey[600],
+                child: SingleChildScrollView(
+                  // vertical scroll for table rows
+                  primary: false,
+                  child: DataTable(
+                    columnSpacing: 16,
+                    horizontalMargin: 16,
+                    headingRowColor: MaterialStateProperty.all(
+                      Theme.of(context).primaryColor.withOpacity(0.1),
+                    ),
+                    columns: columns,
+                    rows: _enhancedOverviewData.map((item) {
+                      final List<DataCell> cells = [
+                        // Product ID cell
+                        DataCell(
+                          SizedBox(
+                            width: 100,
+                            child: Text(
+                              item.productId,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Product Name cell
+                        DataCell(
+                          SizedBox(
+                            width: 150,
+                            child: Tooltip(
+                              message: item.productName,
+                              child: Text(
+                                item.productName,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Category cell
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getCategoryColor(item.categoryName).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _getCategoryColor(item.categoryName).withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              item.categoryName,
+                              style: TextStyle(
+                                color: _getCategoryColor(item.categoryName),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ];
+                      
+                      // Add warehouse stock cells (Quantity + Unit for each warehouse)
+                      for (final warehouseColumn in _warehouseColumns) {
+                        final stock = item.getStockForWarehouse(warehouseColumn.warehouseId);
+                        final quantity = stock?.quantity ?? 0;
+                        final unit = stock?.unit ?? 'PC';
+                        
+                        // Quantity cell
+                        cells.add(DataCell(
+                          Container(
+                            width: 80,
+                            alignment: Alignment.center,
+                            child: Text(
+                              quantity.toString(),
+                              style: TextStyle(
+                                color: quantity > 0 ? Colors.green[700] : Colors.grey[500],
+                                fontWeight: quantity > 0 ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ));
+                        
+                        // Unit cell
+                        cells.add(DataCell(
+                          Container(
+                            width: 60,
+                            alignment: Alignment.center,
+                            child: Text(
+                              unit,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: quantity > 0 ? Colors.blue[600] : Colors.grey[400],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ));
+                      }
+                      
+                      // Add total cell
+                      cells.add(DataCell(
+                        Container(
+                          alignment: Alignment.center,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: item.totalQuantity > 0 
+                                ? Colors.blue[100] 
+                                : Colors.grey[100],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              item.totalQuantity.toString(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: item.totalQuantity > 0 
+                                  ? Colors.blue[800] 
+                                  : Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ));
+                      
+                      return DataRow(
+                        cells: cells,
+                        color: MaterialStateProperty.resolveWith<Color?>(
+                          (Set<MaterialState> states) {
+                            if (!item.hasStock) {
+                              return Colors.red[100];
+                            }
+                            return null;
+                          },
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ),
             ),
-          ));
-          
-          return DataRow(
-            cells: cells,
-            color: MaterialStateProperty.resolveWith<Color?>(
-              (Set<MaterialState> states) {
-                if (!item.hasStock) {
-                  return Colors.red[100];
-                }
-                return null;
-              },
-            ),
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -806,7 +857,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
     
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: const Color.fromARGB(255, 43, 43, 43)!),
+        border: Border.all(color: const Color.fromARGB(255, 43, 43, 43)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: DataTable(

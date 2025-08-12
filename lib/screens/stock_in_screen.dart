@@ -17,7 +17,7 @@ class StockInScreen extends StatefulWidget {
 class _StockInScreenState extends State<StockInScreen> {
   final StockInController _stockInController = StockInController();
   final TextEditingController _searchController = TextEditingController();
-  
+  Timer? _searchDebounce;
   List<StockIn> _stockInRecords = [];
   Map<String, int> _stats = {};
   
@@ -214,18 +214,14 @@ class _StockInScreenState extends State<StockInScreen> {
                       hintText: 'ابحث برقم الإضافة، رقم السجل، أو اسم المنتج...',
                     ),
                     onChanged: (value) {
-                      setState(() {
-                        _searchTerm = value;
-                      });
+                      setState(() => _searchTerm = value);
+                      // بحث تلقائي بعد التوقف عن الكتابة بـ 400ms
+                      _searchDebounce?.cancel();
+                      _searchDebounce = Timer(const Duration(milliseconds: 400), _searchStockInRecords);
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _searchStockInRecords,
-                  icon: const Icon(Icons.search),
-                  label: Text(localizations?.searchText ?? 'بحث'),
-                ),
+                // زر البحث محذوف - يعمل البحث تلقائياً
               ],
             ),
             
@@ -236,7 +232,7 @@ class _StockInScreenState extends State<StockInScreen> {
               children: [
                 // فلتر المورد
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: DropdownButtonFormField<String?>(
                     decoration: const InputDecoration(
                       labelText: 'فلتر بالمورد',
                       border: OutlineInputBorder(),
@@ -244,16 +240,24 @@ class _StockInScreenState extends State<StockInScreen> {
                     ),
                     value: _selectedSupplierFilter,
                     items: [
-                      const DropdownMenuItem<String>(
+                      const DropdownMenuItem<String?>(
                         value: null,
                         child: Text('جميع الموردين'),
                       ),
-                      // سيتم ملؤها من بيانات الموردين
+                      // نبني قائمة الموردين من السجلات الحالية (unique by id)
+                      ...{
+                        for (final r in _stockInRecords)
+                          if (r.supplierId.isNotEmpty) r.supplierId: r.supplierName
+                      }.entries.map(
+                        (e) => DropdownMenuItem<String?>(
+                          value: e.key,
+                          child: Text(e.value),
+                        ),
+                      ),
                     ],
                     onChanged: (value) {
-                      setState(() {
-                        _selectedSupplierFilter = value;
-                      });
+                      setState(() => _selectedSupplierFilter = value);
+                      _searchStockInRecords();
                     },
                   ),
                 ),
@@ -284,6 +288,7 @@ class _StockInScreenState extends State<StockInScreen> {
                         setState(() {
                           _startDate = date;
                         });
+                      _searchStockInRecords();
                       }
                     },
                   ),
@@ -315,6 +320,7 @@ class _StockInScreenState extends State<StockInScreen> {
                         setState(() {
                           _endDate = date;
                         });
+                  _searchStockInRecords();
                       }
                     },
                   ),
@@ -989,6 +995,7 @@ Future<void> _copyInvoiceLink(StockIn stockIn) async {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }

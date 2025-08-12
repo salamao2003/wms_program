@@ -59,7 +59,8 @@ class WarehouseStock {
   final String? id;
   final String warehouseId;
   final String productId;
-  final int currentQuantity;
+  // Use double to allow fractional quantities
+  final double currentQuantity;
   final String unit;
   final int? minStockLevel;
   final int? maxStockLevel;
@@ -85,12 +86,13 @@ class WarehouseStock {
       id: json['id'],
       warehouseId: json['warehouse_id'],
       productId: json['product_id'],
-      currentQuantity: json['current_quantity'] ?? 0,
+      // numeric -> double
+      currentQuantity: (json['current_quantity'] as num?)?.toDouble() ?? 0.0,
       unit: json['unit'] ?? '',
       minStockLevel: json['min_stock_level'],
       maxStockLevel: json['max_stock_level'],
       productName: json['products']?['name'],
-      categoryName: json['products']?['category']?['name'] ?? 'General', // استخدام اسم الفئة من العلاقة
+      categoryName: json['products']?['category']?['name'] ?? 'General',
       warehouseCode: json['warehouses']?['code'],
     );
   }
@@ -127,7 +129,8 @@ class StockOverview {
 }
 
 class WarehouseStockInfo {
-  final int quantity;
+  // Use double to allow fractional quantities
+  final double quantity;
   final String unit;
 
   WarehouseStockInfo({
@@ -150,15 +153,15 @@ class WarehouseOverviewData {
     required this.warehouseStocks,
   });
 
-  // حساب الإجمالي عبر جميع المخازن
-  int get totalQuantity {
+  // الحساب بالإجمالي عبر جميع المخازن كقيمة عشرية
+  double get totalQuantity {
     return warehouseStocks.values
-        .fold<int>(0, (sum, stock) => sum + stock.quantity);
+        .fold<double>(0.0, (sum, stock) => sum + stock.quantity);
   }
 
   // التحقق من وجود مخزون
   bool get hasStock {
-    return totalQuantity > 0;
+    return totalQuantity > 0.0;
   }
 
   // جلب قائمة المخازن التي تحتوي على مخزون
@@ -177,7 +180,8 @@ class WarehouseOverviewData {
 class WarehouseStockDetail {
   final String warehouseId;
   final String warehouseName;
-  final int quantity;
+  // Use double to allow fractional quantities
+  final double quantity;
   final String unit;
 
   WarehouseStockDetail({
@@ -222,14 +226,13 @@ class WarehouseLogic {
           ''')
           .order('product_id');
       
-      // Group by product
       Map<String, StockOverview> overviewMap = {};
       
       for (var item in response) {
         final productId = item['product_id'];
         final warehouseCode = item['warehouses']['code'];
         final productName = item['products']['name'];
-        final categoryName = item['products']['category']?['name'] as String? ?? 'General'; // استخدام اسم الفئة من العلاقة
+        final categoryName = item['products']['category']?['name'] as String? ?? 'General';
         
         if (!overviewMap.containsKey(productId)) {
           overviewMap[productId] = StockOverview(
@@ -241,7 +244,8 @@ class WarehouseLogic {
         }
         
         overviewMap[productId]!.warehouseStocks[warehouseCode] = WarehouseStockInfo(
-          quantity: item['current_quantity'] ?? 0,
+          // numeric -> double
+          quantity: (item['current_quantity'] as num?)?.toDouble() ?? 0.0,
           unit: item['unit'] ?? '',
         );
       }
@@ -341,17 +345,17 @@ class WarehouseLogic {
   Future<List<WarehouseOverviewData>> getEnhancedWarehouseOverview() async {
     try {
       // جلب جميع المنتجات مع الفئات
-      final productsResponse = await _supabase
-          .from('products')
-          .select('''
-            id, 
-            name,
-            category:category_id (
-              id,
-              name
-            )
-          ''')
-          .order('name');
+       final productsResponse = await _supabase
+        .from('products')
+        .select('''
+          id, 
+          name,
+          categories!category_id (
+            id,
+            name
+          )
+        ''')
+        .order('name');
 
       // جلب جميع المخازن
       final warehousesResponse = await _supabase
@@ -390,7 +394,7 @@ class WarehouseLogic {
         stockMap[productId]![warehouseId] = WarehouseStockDetail(
           warehouseId: warehouseId,
           warehouseName: warehouseName,
-          quantity: stock['current_quantity'] ?? 0,
+          quantity: (stock['current_quantity'] as num?)?.toDouble() ?? 0.0,
           unit: stock['unit'] ?? 'PC',
         );
       }
@@ -401,8 +405,6 @@ class WarehouseLogic {
       for (var product in productsResponse) {
         final productId = product['id'] as String;
         final productName = product['name'] as String;
-        
-        // إنشاء map للمخازن - مع إدراج جميع المخازن حتى لو فارغة
         final Map<String, WarehouseStockDetail> productStocks = {};
         
         for (var warehouseEntry in warehousesMap.entries) {
@@ -410,19 +412,16 @@ class WarehouseLogic {
           final warehouseName = warehouseEntry.value;
           
           if (stockMap[productId] != null && stockMap[productId]![warehouseId] != null) {
-            // المنتج موجود في هذا المخزن
             productStocks[warehouseId] = stockMap[productId]![warehouseId]!;
           } else {
-            // المنتج غير موجود في هذا المخزن - عرض 0
             productStocks[warehouseId] = WarehouseStockDetail(
               warehouseId: warehouseId,
               warehouseName: warehouseName,
-              quantity: 0,
+              quantity: 0.0,
               unit: 'PC',
             );
           }
         }
-
         // معالجة آمنة لاسم الفئة
         String categoryName = 'General';
         try {
@@ -467,9 +466,9 @@ class WarehouseLogic {
           .from('warehouse_stock')
           .select('current_quantity');
       
-      int totalStock = 0;
+      double totalStock = 0.0;
       for (var stock in stockResponse) {
-        totalStock += (stock['current_quantity'] as int? ?? 0);
+        totalStock += ((stock['current_quantity'] as num?)?.toDouble() ?? 0.0);
       }
 
       // جلب المنتجات بدون مخزون
@@ -520,7 +519,7 @@ class WarehouseLogic {
   }
 
   // إضافة مخزون لمخزن
-  Future<void> addStock(String warehouseId, String productId, int quantity, String unit) async {
+  Future<void> addStock(String warehouseId, String productId, double quantity, String unit) async {
     try {
       await _supabase
           .from('warehouse_stock')
@@ -536,7 +535,7 @@ class WarehouseLogic {
   }
 
   // تحديث كمية مخزون
-  Future<void> updateStock(String warehouseId, String productId, int newQuantity) async {
+  Future<void> updateStock(String warehouseId, String productId, double newQuantity) async {
     try {
       await _supabase
           .from('warehouse_stock')
@@ -673,6 +672,18 @@ class WarehouseLogic {
       throw Exception('Error getting filtered overview data: $e');
     }
   }
+
+  // في warehouse_logic.dart
+// أضف هذه الدالة
+Future<void> refreshWarehouseData() async {
+  try {
+    // إعادة تحميل جميع البيانات
+    await getEnhancedWarehouseOverview();
+    await getWarehouseOverviewStats();
+  } catch (e) {
+    print('Error refreshing warehouse data: $e');
+  }
+}
 
   // ===============================
   // End of Helper Functions

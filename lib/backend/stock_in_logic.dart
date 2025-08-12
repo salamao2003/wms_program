@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:typed_data';
 import 'dart:convert';
 import 'supabase_service.dart';
+import 'warehouse_logic.dart';
 
 // Stock In Models
 class StockInItem {
@@ -255,7 +256,7 @@ class StockInService {
       return ApiResponse.error('المستخدم غير مصرح له');
     }
 
-    // الحصول على رقم إضافة واحد لجميع المنتجات
+    // الحصول على رقم إضافة
     final additionNumberResponse = await _client
         .rpc('generate_addition_number', params: {
           'p_warehouse_id': request.warehouseId,
@@ -267,18 +268,12 @@ class StockInService {
     
     final additionNumber = additionNumberResponse.toString();
     
-    if (additionNumber.startsWith('ERR-')) {
-      return ApiResponse.error('المخزن المحدد غير موجود');
-    }
-
-    print('Generated Addition Number: $additionNumber');
-    
     List<Map<String, dynamic>> createdRecords = [];
 
-    // إنشاء سجل منفصل لكل منتج بنفس رقم الإضافة
+    // إنشاء سجل منفصل لكل منتج
     for (var product in request.products) {
       try {
-        // الحصول على رقم سجل فريد لكل منتج
+        // الحصول على رقم سجل فريد
         final recordIdResponse = await _client.rpc('generate_record_id');
         
         if (recordIdResponse == null) {
@@ -287,7 +282,6 @@ class StockInService {
         }
         
         final recordId = recordIdResponse.toString();
-        print('Generated Record ID: $recordId for product: ${product.productId}');
 
         // إدخال السجل في جدول stock_in
         final stockInData = await _client
@@ -307,7 +301,7 @@ class StockInService {
 
         print('Created stock_in record: ${stockInData['id']}');
 
-        // إدخال تفاصيل المنتج في جدول stock_in_items
+        // إدخال تفاصيل المنتج
         await _client.from('stock_in_items').insert({
           'stock_in_id': stockInData['id'],
           'product_id': product.productId,
@@ -317,19 +311,21 @@ class StockInService {
 
         print('Created stock_in_item for product: ${product.productId}');
 
-        // تحديث مخزون المخزن
-        await _updateWarehouseStock(
-          warehouseId: request.warehouseId,
-          productId: product.productId,
-          quantity: product.quantity,
-          unit: product.unit,
-          isAddition: true,
-        );
+        // تم الاعتماد على trigger في قاعدة البيانات لتحديث warehouse_stock
+        // لذلك نلغي التحديث اليدوي لتجنب الازدواجية
+        // await _updateWarehouseStock(
+        //   warehouseId: request.warehouseId,
+        //   productId: product.productId,
+        //   quantity: product.quantity,
+        //   unit: product.unit,
+        //   isAddition: true,
+        // );
+        
+        print('Warehouse stock will be updated by DB trigger');
 
         createdRecords.add(stockInData);
       } catch (productError) {
         print('Error processing product ${product.productId}: $productError');
-        // نكمل مع باقي المنتجات حتى لو فشل واحد
         continue;
       }
     }
@@ -351,58 +347,10 @@ class StockInService {
     return ApiResponse.error('خطأ: ${e.toString()}');
   }
 }
-// دالة مساعدة لتحديث مخزون المخزن
-// دالة مساعدة لتحديث مخزون المخزن
-Future<void> _updateWarehouseStock({
-  required String warehouseId,
-  required String productId,
-  required double quantity,
-  required String unit,
-  required bool isAddition,
-}) async {
-  try {
-    // التحقق من وجود سجل مخزون للمنتج في المخزن
-    final existing = await _client
-        .from('warehouse_stock')
-        .select()
-        .eq('warehouse_id', warehouseId)
-        .eq('product_id', productId)
-        .maybeSingle();
 
-    if (existing != null) {
-      // تحديث الكمية الموجودة
-      final currentQuantity = (existing['current_quantity'] ?? 0).toDouble();
-      final newQuantity = isAddition 
-          ? currentQuantity + quantity 
-          : currentQuantity - quantity;
-
-      await _client
-          .from('warehouse_stock')
-          .update({
-            'current_quantity': newQuantity,
-            'unit': unit,
-            // حذف updated_at - سيتم تحديثه تلقائياً من قاعدة البيانات
-          })
-          .eq('warehouse_id', warehouseId)
-          .eq('product_id', productId);
-    } else if (isAddition) {
-      // إنشاء سجل جديد (فقط في حالة الإضافة)
-      await _client
-          .from('warehouse_stock')
-          .insert({
-            'warehouse_id': warehouseId,
-            'product_id': productId,
-            'current_quantity': quantity,
-            'unit': unit,
-            // حذف created_at - سيتم إضافته تلقائياً من قاعدة البيانات
-          });
-    }
-  } catch (e) {
-    print('Error updating warehouse stock: $e');
-    // لا نرمي الخطأ حتى لا نوقف العملية الأساسية
-  }
-}
-  // Get Stock In Records with filters
+// دالة مساعدة لتحديث مخزون المخزن
+// تُركت هنا للتوافق الخلفي، ولكن لم تعد تُستخدم لأن التحديث يتم عبر التريجر
+// Get Stock In Records with filters
   // Get Stock In Records with filters
 Future<ApiResponse<List<StockIn>>> getStockInRecords({
   String? searchTerm,
@@ -523,6 +471,58 @@ Future<ApiResponse<List<StockIn>>> getStockInRecords({
     StockInRequest request,
   ) async {
     try {
+      // Fetch the existing record to know the previous warehouse and items
+      final existing = await _client
+          .from('stock_in')
+          .select('id, warehouse_id')
+          .eq('id', stockInId)
+          .maybeSingle();
+
+      if (existing == null) {
+        return ApiResponse.error('السجل غير موجود');
+      }
+
+      final String oldWarehouseId = existing['warehouse_id']?.toString() ?? '';
+
+      // Load old items and subtract their quantities from old warehouse stock
+      final oldItems = await _client
+          .from('stock_in_items')
+          .select('product_id, quantity')
+          .eq('stock_in_id', stockInId);
+
+      for (final item in oldItems) {
+        final String productId = item['product_id']?.toString() ?? '';
+        final double qty = (item['quantity'] ?? 0).toDouble();
+        try {
+          final stockRows = await _client
+              .from('warehouse_stock')
+              .select('id, current_quantity')
+              .eq('warehouse_id', oldWarehouseId)
+              .eq('product_id', productId)
+              .limit(1);
+
+          if (stockRows.isNotEmpty) {
+            final stockRow = stockRows.first;
+            final String stockId = stockRow['id'].toString();
+            final double currentQty = (stockRow['current_quantity'] ?? 0).toDouble();
+            final double newQty = currentQty - qty;
+            if (newQty > 0) {
+              await _client
+                  .from('warehouse_stock')
+                  .update({'current_quantity': newQty})
+                  .eq('id', stockId);
+            } else {
+              await _client
+                  .from('warehouse_stock')
+                  .delete()
+                  .eq('id', stockId);
+            }
+          }
+        } catch (e) {
+          print('Error subtracting old item from warehouse_stock: $e');
+        }
+      }
+
       // Update stock_in table
       final stockInData = await _client
           .from('stock_in')
@@ -554,6 +554,7 @@ Future<ApiResponse<List<StockIn>>> getStockInRecords({
         }).toList();
 
         await _client.from('stock_in_items').insert(itemsData);
+  // Rely on DB INSERT trigger to add to warehouse_stock
       }
 
       return ApiResponse.success({
@@ -571,6 +572,64 @@ Future<ApiResponse<List<StockIn>>> getStockInRecords({
     int stockInId,
   ) async {
     try {
+      // 1) Read the stock_in record to get the warehouse_id
+      final stockInRecord = await _client
+          .from('stock_in')
+          .select('id, warehouse_id')
+          .eq('id', stockInId)
+          .maybeSingle();
+
+      if (stockInRecord == null) {
+        return ApiResponse.error('السجل غير موجود');
+      }
+
+      final String warehouseId = stockInRecord['warehouse_id']?.toString() ?? '';
+
+      // 2) Read all items for this stock_in
+      final items = await _client
+          .from('stock_in_items')
+          .select('product_id, quantity, unit')
+          .eq('stock_in_id', stockInId);
+
+      // 3) For each item, decrease warehouse_stock and delete the row if it becomes 0
+      for (final item in items) {
+        final String productId = item['product_id']?.toString() ?? '';
+        final double qty = (item['quantity'] ?? 0).toDouble();
+
+        try {
+          final stockRows = await _client
+              .from('warehouse_stock')
+              .select('id, current_quantity')
+              .eq('warehouse_id', warehouseId)
+              .eq('product_id', productId)
+              .limit(1);
+
+          if (stockRows.isNotEmpty) {
+            final stockRow = stockRows.first;
+            final String stockId = stockRow['id'].toString();
+            final double currentQty = (stockRow['current_quantity'] ?? 0).toDouble();
+            final double newQty = currentQty - qty;
+
+            if (newQty > 0) {
+              await _client
+                  .from('warehouse_stock')
+                  .update({'current_quantity': newQty})
+                  .eq('id', stockId);
+            } else {
+              // Delete the row when quantity goes to zero or negative
+              await _client
+                  .from('warehouse_stock')
+                  .delete()
+                  .eq('id', stockId);
+            }
+          }
+        } catch (adjErr) {
+          // Continue processing other items even if one fails
+          print('Error adjusting warehouse_stock for product $productId: $adjErr');
+        }
+      }
+
+      // 4) Delete items (foreign key constraint) and the main record
       // Delete items first (foreign key constraint)
       await _client
           .from('stock_in_items')
@@ -582,6 +641,11 @@ Future<ApiResponse<List<StockIn>>> getStockInRecords({
           .from('stock_in')
           .delete()
           .eq('id', stockInId);
+
+      // 5) Ask warehouse logic to refresh any cached data (for UI)
+      try {
+        await WarehouseLogic().refreshWarehouseData();
+      } catch (_) {}
 
       return ApiResponse.success({
         'success': true,
