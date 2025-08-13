@@ -81,12 +81,12 @@ class _StockInScreenState extends State<StockInScreen> {
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل البحث: ${_stockInController.error}')),
+          SnackBar(content: Text('${AppLocalizations.of(context)?.searchFailed ?? 'Search failed'}: ${_stockInController.error}')),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('فشل البحث: ${e.toString()}')),
+        SnackBar(content: Text('${AppLocalizations.of(context)?.searchFailed ?? 'Search failed'}: ${e.toString()}')),
       );
     }
   }
@@ -97,7 +97,7 @@ class _StockInScreenState extends State<StockInScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text(localizations?.productsTitle ?? 'Stock In Management'),
+        title: Text(localizations?.stockIn ?? 'Stock In'),
         automaticallyImplyLeading: false,
         actions: [
           // إحصائيات سريعة
@@ -130,7 +130,7 @@ class _StockInScreenState extends State<StockInScreen> {
           ElevatedButton.icon(
             onPressed: () => _showStockInDialog(),
             icon: const Icon(Icons.add),
-            label: Text(localizations?.addProduct ?? 'Record Stock In'),
+            label: Text(localizations?.add ?? 'Add'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -148,6 +148,7 @@ class _StockInScreenState extends State<StockInScreen> {
   }
 
   Widget _buildErrorWidget() {
+    final localizations = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -155,7 +156,7 @@ class _StockInScreenState extends State<StockInScreen> {
           Icon(Icons.error_outline, size: 64, color: Colors.red),
           const SizedBox(height: 16),
           Text(
-            'خطأ في تحميل البيانات',
+            localizations?.error ?? 'Error',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
@@ -168,7 +169,7 @@ class _StockInScreenState extends State<StockInScreen> {
           ElevatedButton.icon(
             onPressed: _loadInitialData,
             icon: const Icon(Icons.refresh),
-            label: const Text('إعادة المحاولة'),
+            label: Text(localizations?.retry ?? 'Retry'),
           ),
         ],
       ),
@@ -208,10 +209,10 @@ class _StockInScreenState extends State<StockInScreen> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      labelText: localizations?.searchText ?? 'البحث...',
+                      labelText: localizations?.searchText ?? 'Search',
                       prefixIcon: const Icon(Icons.search),
                       border: const OutlineInputBorder(),
-                      hintText: 'ابحث برقم الإضافة، رقم السجل، أو اسم المنتج...',
+                      hintText: localizations?.searchAll ?? 'Search in all fields...',
                     ),
                     onChanged: (value) {
                       setState(() => _searchTerm = value);
@@ -233,16 +234,16 @@ class _StockInScreenState extends State<StockInScreen> {
                 // فلتر المورد
                 Expanded(
                   child: DropdownButtonFormField<String?>(
-                    decoration: const InputDecoration(
-                      labelText: 'فلتر بالمورد',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.business),
+                    decoration: InputDecoration(
+                      labelText: localizations?.supplierFilter ?? 'Supplier Filter',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.business),
                     ),
                     value: _selectedSupplierFilter,
                     items: [
-                      const DropdownMenuItem<String?>(
+                      DropdownMenuItem<String?>(
                         value: null,
-                        child: Text('جميع الموردين'),
+                        child: Text(localizations?.all ?? 'All'),
                       ),
                       // نبني قائمة الموردين من السجلات الحالية (unique by id)
                       ...{
@@ -266,10 +267,10 @@ class _StockInScreenState extends State<StockInScreen> {
                 // فلتر التاريخ من
                 Expanded(
                   child: TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'من تاريخ',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.calendar_today),
+                    decoration: InputDecoration(
+                      labelText: localizations?.fromDate ?? 'From date',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.calendar_today),
                     ),
                     readOnly: true,
                     controller: TextEditingController(
@@ -298,10 +299,10 @@ class _StockInScreenState extends State<StockInScreen> {
                 // فلتر التاريخ إلى
                 Expanded(
                   child: TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'إلى تاريخ',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.calendar_today),
+                    decoration: InputDecoration(
+                      labelText: localizations?.toDate ?? 'To date',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.calendar_today),
                     ),
                     readOnly: true,
                     controller: TextEditingController(
@@ -340,7 +341,7 @@ class _StockInScreenState extends State<StockInScreen> {
                     _loadInitialData();
                   },
                   icon: const Icon(Icons.clear),
-                  tooltip: 'مسح الفلاتر',
+                  tooltip: localizations?.clearFilters ?? 'Clear filters',
                 ),
               ],
             ),
@@ -351,6 +352,7 @@ class _StockInScreenState extends State<StockInScreen> {
   }
 
   Widget _buildEmptyState() {
+    final localizations = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -358,16 +360,16 @@ class _StockInScreenState extends State<StockInScreen> {
           Icon(Icons.inventory_outlined, size: 64, color: Colors.grey),
           const SizedBox(height: 16),
           Text(
-            'لا توجد سجلات إدخال مخزون',
+            localizations?.noStockInRecords ?? 'No stock-in records found',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
-          const Text('ابدأ بتسجيل أول عملية إدخال مخزون'),
+          Text(localizations?.noStockInRecordsSubtext ?? 'Start by recording your first stock in operation'),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () => _showStockInDialog(),
             icon: const Icon(Icons.add),
-            label: const Text('تسجيل أول عملية إدخال'),
+            label: Text(localizations?.firstStockInRecord ?? 'Record First Stock In'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -379,77 +381,78 @@ class _StockInScreenState extends State<StockInScreen> {
   }
 
   Widget _buildStockInTable() {
+    final localizations = AppLocalizations.of(context);
     return Card(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SingleChildScrollView(
           child: DataTable(
             columnSpacing: 20,
-            columns: const [
+            columns: [
               DataColumn(
                 label: Text(
-                  'رقم الإضافة',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.additionNumber ?? 'Addition No.',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'رقم السجل',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.recordIdLabel ?? 'Record ID',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'التاريخ',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.date ?? 'Date',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'رقم المنتج',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.productId ?? 'Product ID',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'اسم المنتج',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.productName ?? 'Product Name',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'الكمية',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.quantity ?? 'Quantity',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'الوحدة',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.unit ?? 'Unit',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'المورد',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.supplier ?? 'Supplier',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'المخزن',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.warehouseLabel ?? 'Warehouse',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'ملاحظات',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.notes ?? 'Notes',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
               DataColumn(
                 label: Text(
-                  'الإجراءات',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  localizations?.actions ?? 'Actions',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -461,6 +464,7 @@ class _StockInScreenState extends State<StockInScreen> {
   }
 
   List<DataRow> _buildTableRows() {
+    final localizations = AppLocalizations.of(context);
     List<DataRow> rows = [];
     
     for (var stockIn in _stockInRecords) {
@@ -551,47 +555,47 @@ class _StockInScreenState extends State<StockInScreen> {
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
                         onPressed: () => _showStockInDialog(stockIn: stockIn),
-                        tooltip: 'تعديل',
+                        tooltip: localizations?.edit ?? 'Edit',
                       ),
                       // Delete button
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red, size: 18),
                         onPressed: () => _confirmDeleteStockIn(stockIn),
-                        tooltip: 'حذف',
+                        tooltip: localizations?.delete ?? 'Delete',
                       ),
                       // Download button
-                     // في _buildTableRows() - عدّل زر التحميل
-if (stockIn.invoiceFilePath != null)
-  PopupMenuButton<String>(
-    onSelected: (value) async {
-      if (value == 'open') {
-        await _openInvoiceInNewTab(stockIn);
-      } else if (value == 'copy') {
-        await _copyInvoiceLink(stockIn);
-      }
-    },
-    itemBuilder: (context) => [
-      const PopupMenuItem(
-        value: 'open',
-        child: Row(
-          children: [
-            Icon(Icons.open_in_new, color: Colors.blue, size: 18),
-            SizedBox(width: 8),
-            Text('فتح في تبويب جديد'),
-          ],
-        ),
-      ),
-      const PopupMenuItem(
-        value: 'copy',
-        child: Row(
-          children: [
-            Icon(Icons.copy, color: Colors.green, size: 18),
-            SizedBox(width: 8),
-            Text('نسخ الرابط'),
-          ],
-        ),
-      ),
-    ],
+                      // في _buildTableRows() - عدّل زر التحميل
+ if (stockIn.invoiceFilePath != null)
+   PopupMenuButton<String>(
+     onSelected: (value) async {
+       if (value == 'open') {
+         await _openInvoiceInNewTab(stockIn);
+       } else if (value == 'copy') {
+         await _copyInvoiceLink(stockIn);
+       }
+     },
+     itemBuilder: (context) => [
+       PopupMenuItem(
+         value: 'open',
+         child: Row(
+           children: [
+             Icon(Icons.open_in_new, color: Colors.blue, size: 18),
+             SizedBox(width: 8),
+             Text(localizations?.openInNewTab ?? 'Open in new tab'),
+           ],
+         ),
+       ),
+       PopupMenuItem(
+         value: 'copy',
+         child: Row(
+           children: [
+             Icon(Icons.copy, color: Colors.green, size: 18),
+             SizedBox(width: 8),
+             Text(localizations?.copyLink ?? 'Copy link'),
+           ],
+         ),
+       ),
+     ],
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -614,13 +618,13 @@ if (stockIn.invoiceFilePath != null)
         ],
       ),
     ),
-    tooltip: 'الفاتورة',
-  ),
+     tooltip: localizations?.invoice ?? 'Invoice',
+   ),
                       // Print button
                       IconButton(
                         icon: const Icon(Icons.print, color: Colors.purple, size: 18),
                         onPressed: () => _printStockIn(stockIn),
-                        tooltip: 'طباعة',
+                        tooltip: localizations?.print ?? 'Print',
                       ),
                     ],
                   ) : const SizedBox.shrink(),
@@ -651,12 +655,12 @@ if (stockIn.invoiceFilePath != null)
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
                       onPressed: () => _showStockInDialog(stockIn: stockIn),
-                      tooltip: 'تعديل',
+                      tooltip: localizations?.edit ?? 'Edit',
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red, size: 18),
                       onPressed: () => _confirmDeleteStockIn(stockIn),
-                      tooltip: 'حذف',
+                      tooltip: localizations?.delete ?? 'Delete',
                     ),
                    // في _buildTableRows() - عدّل زر التحميل
 if (stockIn.invoiceFilePath != null)
@@ -669,23 +673,23 @@ if (stockIn.invoiceFilePath != null)
       }
     },
     itemBuilder: (context) => [
-      const PopupMenuItem(
+      PopupMenuItem(
         value: 'open',
         child: Row(
           children: [
-            Icon(Icons.open_in_new, color: Colors.blue, size: 18),
-            SizedBox(width: 8),
-            Text('فتح في تبويب جديد'),
+            const Icon(Icons.open_in_new, color: Colors.blue, size: 18),
+            const SizedBox(width: 8),
+            Text(localizations?.openInNewTab ?? 'Open in new tab'),
           ],
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: 'copy',
         child: Row(
           children: [
-            Icon(Icons.copy, color: Colors.green, size: 18),
-            SizedBox(width: 8),
-            Text('نسخ الرابط'),
+            const Icon(Icons.copy, color: Colors.green, size: 18),
+            const SizedBox(width: 8),
+            Text(localizations?.copyLink ?? 'Copy link'),
           ],
         ),
       ),
@@ -712,12 +716,12 @@ if (stockIn.invoiceFilePath != null)
         ],
       ),
     ),
-    tooltip: 'الفاتورة',
+    tooltip: localizations?.invoiceUpload ?? 'Invoice',
   ),
                     IconButton(
                       icon: const Icon(Icons.print, color: Colors.purple, size: 18),
                       onPressed: () => _printStockIn(stockIn),
-                      tooltip: 'طباعة',
+                      tooltip: localizations?.print ?? 'Print',
                     ),
                   ],
                 ),
@@ -752,15 +756,16 @@ if (stockIn.invoiceFilePath != null)
   }
 
   Future<void> _deleteStockIn(StockIn stockIn) async {
+    final localizations = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('حذف سجل إدخال المخزون'),
+        title: Text(localizations?.deleteStockInTitle ?? 'Delete Stock In Record'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('هل أنت متأكد من حذف سجل إدخال المخزون؟'),
+            Text(localizations?.deleteStockInConfirmation ?? 'Are you sure you want to delete this stock in record?'),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
@@ -771,28 +776,28 @@ if (stockIn.invoiceFilePath != null)
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('رقم السجل: ${stockIn.recordId}'),
-                  Text('رقم الإضافة: ${stockIn.additionNumber}'),
-                  Text('المورد: ${stockIn.supplierName}'),
+                  Text('${localizations?.recordIdLabel ?? 'Record ID'}: ${stockIn.recordId}'),
+                  Text('${localizations?.additionNumber ?? 'Addition Number'}: ${stockIn.additionNumber}'),
+                  Text('${localizations?.supplier ?? 'Supplier'}: ${stockIn.supplierName}'),
                 ],
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'تحذير: لا يمكن التراجع عن هذا الإجراء!',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            Text(
+              localizations?.deleteCannotUndo ?? 'Warning: This action cannot be undone!',
+              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('حذف', style: TextStyle(color: Colors.white)),
+            child: Text(localizations?.delete ?? 'Delete', style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -806,12 +811,12 @@ if (stockIn.invoiceFilePath != null)
             _stockInRecords = _stockInController.stockInRecords;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم حذف السجل بنجاح')),
+            SnackBar(content: Text(localizations?.stockInDeleted ?? 'Record deleted successfully')),
           );
         } else if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('فشل في حذف السجل: ${_stockInController.error}'),
+              content: Text('${localizations?.recordDeleteFailed ?? 'Failed to delete record'}: ${_stockInController.error}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -820,7 +825,7 @@ if (stockIn.invoiceFilePath != null)
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('خطأ: ${e.toString()}'),
+              content: Text('${localizations?.error ?? 'Error'}: ${e.toString()}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -828,93 +833,6 @@ if (stockIn.invoiceFilePath != null)
       }
     }
   }
-
-  
-
-Future<void> _downloadInvoice(StockIn stockIn) async {
-  if (stockIn.invoiceFilePath == null) return;
-  
-  try {
-    // فتح الرابط في تبويب جديد
-    final Uri url = Uri.parse(stockIn.invoiceFilePath!);
-    
-    if (await canLaunchUrl(url)) {
-      await launchUrl(
-        url,
-        webOnlyWindowName: '_blank', // فتح في تبويب جديد
-      );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم فتح الفاتورة في تبويب جديد'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } else {
-      // إذا فشل فتح الرابط، نحاول طريقة بديلة
-      _openInNewTabAlternative(stockIn.invoiceFilePath!);
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('خطأ في فتح الفاتورة: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-}
-
-// طريقة بديلة باستخدام dart:html (للويب فقط)
-void _openInNewTabAlternative(String url) {
-  // استخدم هذا الكود فقط إذا كنت تستهدف الويب
-  // import 'dart:html' as html;
-  // html.window.open(url, '_blank');
-  
-  // أو يمكنك نسخ الرابط للحافظة
-  _copyToClipboard(url);
-}
-
-// دالة نسخ الرابط للحافظة
-void _copyToClipboard(String url) {
- 
-  
-  Clipboard.setData(ClipboardData(text: url));
-  
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('تم نسخ رابط الفاتورة'),
-            const SizedBox(height: 4),
-            Text(
-              'الصق الرابط في متصفحك لتحميل الفاتورة',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'فتح',
-          textColor: Colors.white,
-          onPressed: () async {
-            final Uri uri = Uri.parse(url);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, webOnlyWindowName: '_blank');
-            }
-          },
-        ),
-      ),
-    );
-  }
-}
 
 // فتح الفاتورة في تبويب جديد
 Future<void> _openInvoiceInNewTab(StockIn stockIn) async {
@@ -932,15 +850,15 @@ Future<void> _openInvoiceInNewTab(StockIn stockIn) async {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم فتح الفاتورة في تبويب جديد'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)?.invoiceUploaded ?? 'Invoice opened in new tab'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } else {
-      throw 'لا يمكن فتح الرابط';
+      throw AppLocalizations.of(context)?.uploadError ?? 'Cannot open link';
     }
   } catch (e) {
     if (mounted) {
@@ -959,11 +877,11 @@ Future<void> _copyInvoiceLink(StockIn stockIn) async {
   if (mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('تم نسخ رابط الفاتورة - الصقه في متصفحك'),
+        content: Text(AppLocalizations.of(context)?.linkCopied ?? 'Link copied - paste it in your browser'),
         backgroundColor: Colors.blue,
         duration: const Duration(seconds: 3),
         action: SnackBarAction(
-          label: 'فتح الآن',
+          label: AppLocalizations.of(context)?.openInNewTab ?? 'Open now',
           textColor: Colors.white,
           onPressed: () async {
             final Uri url = Uri.parse(stockIn.invoiceFilePath!);
@@ -1114,8 +1032,8 @@ String? _uploadedInvoiceUrl;
     
     return AlertDialog(
       title: Text(isEditing 
-          ? 'تعديل سجل إدخال المخزون' 
-          : 'تسجيل إدخال مخزون جديد'),
+          ? (localizations?.editStockInRecord ?? 'Edit Stock In Record')
+          : (localizations?.newStockInRecord ?? 'Record New Stock In')),
       content: SizedBox(
         width: 800,
         height: 700,
@@ -1143,7 +1061,7 @@ String? _uploadedInvoiceUrl;
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(localizations?.cancel ?? 'إلغاء'),
+          child: Text(localizations?.cancel ?? 'Cancel'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _saveStockIn,
@@ -1157,13 +1075,14 @@ String? _uploadedInvoiceUrl;
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text(isEditing ? 'تحديث' : 'حفظ'),
+              : Text(isEditing ? (localizations?.save ?? 'Update') : (localizations?.save ?? 'Save')),
         ),
       ],
     );
   }
 
   Widget _buildProductsSection() {
+    final localizations = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1174,9 +1093,9 @@ String? _uploadedInvoiceUrl;
               children: [
                 const Icon(Icons.inventory_2, color: Colors.blue),
                 const SizedBox(width: 8),
-                const Text(
-                  'المنتجات',
-                  style: TextStyle(
+                Text(
+                  localizations?.productsSection ?? 'Products',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.blue,
@@ -1186,7 +1105,7 @@ String? _uploadedInvoiceUrl;
                 ElevatedButton.icon(
                   onPressed: _addProductRow,
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('إضافة منتج'),
+                  label: Text(localizations?.add ?? 'Add Product'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -1212,6 +1131,7 @@ String? _uploadedInvoiceUrl;
   }
 
   Widget _buildProductRow(int index) {
+    final localizations = AppLocalizations.of(context);
     final controller = _productControllers[index];
     
     return Card(
@@ -1223,14 +1143,14 @@ String? _uploadedInvoiceUrl;
           children: [
             Row(
               children: [
-                Text('منتج ${index + 1}', 
+                Text('${localizations?.productNumber ?? 'Product'} ${index + 1}', 
                      style: const TextStyle(fontWeight: FontWeight.bold)),
                 const Spacer(),
                 if (_productControllers.length > 1)
                   IconButton(
                     onPressed: () => _removeProductRow(index),
                     icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                    tooltip: 'حذف المنتج',
+                    tooltip: localizations?.delete ?? 'Delete Product',
                   ),
               ],
             ),
@@ -1246,11 +1166,11 @@ String? _uploadedInvoiceUrl;
                     children: [
                       TextFormField(
                         controller: controller.productIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'رقم المنتج *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.tag),
-                          hintText: 'اكتب رقم أو اسم المنتج',
+                        decoration: InputDecoration(
+                          labelText: localizations?.productIdLabel ?? 'Product ID *',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.tag),
+                          hintText: localizations?.searchProducts ?? 'Enter product ID or name',
                         ),
                         onChanged: (value) => _searchProductById(value, index),
                         onTap: () {
@@ -1261,7 +1181,7 @@ String? _uploadedInvoiceUrl;
                         },
                         validator: (value) {
                           if (value?.isEmpty ?? true) {
-                            return 'رقم المنتج مطلوب';
+                            return localizations?.productIdLabel ?? 'Product ID is required';
                           }
                           return null;
                         },
@@ -1270,15 +1190,15 @@ String? _uploadedInvoiceUrl;
                       if (controller.isSearching)
                         Container(
                           padding: const EdgeInsets.all(16),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              SizedBox(
+                              const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               ),
-                              SizedBox(width: 8),
-                              Text('جاري البحث...', style: TextStyle(fontSize: 12)),
+                              const SizedBox(width: 8),
+                              Text(localizations?.searching ?? 'Searching...', style: const TextStyle(fontSize: 12)),
                             ],
                           ),
                         )
@@ -1326,11 +1246,11 @@ String? _uploadedInvoiceUrl;
                     children: [
                       TextFormField(
                         controller: controller.productNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'اسم المنتج *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.inventory),
-                          hintText: 'اكتب اسم المنتج للبحث',
+                        decoration: InputDecoration(
+                          labelText: localizations?.productNameLabel ?? 'Product Name *',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.inventory),
+                          hintText: localizations?.searchProducts ?? 'Enter product name to search',
                         ),
                         onChanged: (value) => _searchProductByName(value, index),
                         onTap: () {
@@ -1341,7 +1261,7 @@ String? _uploadedInvoiceUrl;
                         },
                         validator: (value) {
                           if (value?.isEmpty ?? true) {
-                            return 'اسم المنتج مطلوب';
+                            return localizations?.productNameLabel ?? 'Product name is required';
                           }
                           return null;
                         },
@@ -1350,15 +1270,15 @@ String? _uploadedInvoiceUrl;
                       if (controller.isSearching && controller.productIdController.text.isEmpty)
                         Container(
                           padding: const EdgeInsets.all(16),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              SizedBox(
+                              const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               ),
-                              SizedBox(width: 8),
-                              Text('جاري البحث...', style: TextStyle(fontSize: 12)),
+                              const SizedBox(width: 8),
+                              Text(localizations?.searching ?? 'Searching...', style: const TextStyle(fontSize: 12)),
                             ],
                           ),
                         )
@@ -1409,18 +1329,18 @@ String? _uploadedInvoiceUrl;
                   flex: 2,
                   child: TextFormField(
                     controller: controller.quantityController,
-                    decoration: const InputDecoration(
-                      labelText: 'الكمية *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.numbers),
+                    decoration: InputDecoration(
+                      labelText: localizations?.quantityLabel ?? 'Quantity *',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.numbers),
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {
                       if (value?.isEmpty ?? true) {
-                        return 'الكمية مطلوبة';
+                        return localizations?.quantityRequired ?? 'Quantity is required';
                       }
                       if (double.tryParse(value!) == null || double.parse(value) <= 0) {
-                        return 'كمية غير صحيحة';
+                        return localizations?.invalidQuantity ?? 'Invalid quantity';
                       }
                       return null;
                     },
@@ -1433,10 +1353,10 @@ String? _uploadedInvoiceUrl;
                   flex: 2,
                   child: DropdownButtonFormField<String>(
                     value: controller.selectedUnit,
-                    decoration: const InputDecoration(
-                      labelText: 'الوحدة *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.straighten),
+                    decoration: InputDecoration(
+                      labelText: localizations?.unitLabel ?? 'Unit *',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.straighten),
                     ),
                     items: ['piece', 'KG', 'Liter', 'Meter'].map((unit) {
                       return DropdownMenuItem(
@@ -1451,7 +1371,7 @@ String? _uploadedInvoiceUrl;
                     },
                     validator: (value) {
                       if (value?.isEmpty ?? true) {
-                        return 'الوحدة مطلوبة';
+                        return localizations?.unitRequired ?? 'Unit is required';
                       }
                       return null;
                     },
@@ -1466,6 +1386,7 @@ String? _uploadedInvoiceUrl;
   }
 
   Widget _buildGeneralInfoSection() {
+    final localizations = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1476,9 +1397,9 @@ String? _uploadedInvoiceUrl;
               children: [
                 const Icon(Icons.info, color: Colors.orange),
                 const SizedBox(width: 8),
-                const Text(
-                  'المعلومات العامة',
-                  style: TextStyle(
+                Text(
+                  localizations?.generalInfo ?? 'General Information',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.orange,
@@ -1497,11 +1418,11 @@ String? _uploadedInvoiceUrl;
                       flex: 2,
                       child: TextFormField(
                         controller: _supplierTaxController,
-                        decoration: const InputDecoration(
-                          labelText: 'الرقم الضريبي للمورد *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.numbers),
-                          hintText: 'اكتب الرقم الضريبي',
+                        decoration: InputDecoration(
+                          labelText: localizations?.supplierTaxNumber ?? 'Supplier Tax Number *',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.numbers),
+                          hintText: localizations?.supplierTaxNumber ?? 'Enter tax number',
                         ),
                         onChanged: (value) => _searchSuppliersByTax(value),
                         onTap: () {
@@ -1511,7 +1432,7 @@ String? _uploadedInvoiceUrl;
                         },
                         validator: (value) {
                           if (_selectedSupplierId == null) {
-                            return 'يجب اختيار مورد';
+                            return localizations?.mustSelectSupplier ?? 'Must select a supplier';
                           }
                           return null;
                         },
@@ -1524,11 +1445,11 @@ String? _uploadedInvoiceUrl;
                       flex: 2,
                       child: TextFormField(
                         controller: _supplierSearchController,
-                        decoration: const InputDecoration(
-                          labelText: 'اسم المورد *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.business),
-                          hintText: 'اكتب اسم المورد',
+                        decoration: InputDecoration(
+                          labelText: localizations?.supplierName ?? 'Supplier Name *',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.business),
+                          hintText: localizations?.searchSuppliers ?? 'Enter supplier name',
                         ),
                         onChanged: (value) => _searchSuppliersByName(value),
                         onTap: () {
@@ -1538,7 +1459,7 @@ String? _uploadedInvoiceUrl;
                         },
                         validator: (value) {
                           if (_selectedSupplierId == null) {
-                            return 'يجب اختيار مورد';
+                            return localizations?.mustSelectSupplier ?? 'Must select a supplier';
                           }
                           return null;
                         },
@@ -1554,10 +1475,10 @@ String? _uploadedInvoiceUrl;
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _selectedWarehouseId,
-                        decoration: const InputDecoration(
-                          labelText: 'المخزن *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.warehouse),
+                        decoration: InputDecoration(
+                          labelText: localizations?.warehouse ?? 'Warehouse *',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.warehouse),
                         ),
                         items: widget.stockInController.warehouses.map((warehouse) {
                           return DropdownMenuItem<String>(
@@ -1572,7 +1493,7 @@ String? _uploadedInvoiceUrl;
                         },
                         validator: (value) {
                           if (value?.isEmpty ?? true) {
-                            return 'المخزن مطلوب';
+                            return localizations?.warehouseRequired ?? 'Warehouse is required';
                           }
                           return null;
                         },
@@ -1583,10 +1504,10 @@ String? _uploadedInvoiceUrl;
                     // Date picker
                     Expanded(
                       child: TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'التاريخ *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_today),
+                        decoration: InputDecoration(
+                          labelText: localizations?.dateLabel ?? 'Date *',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.calendar_today),
                         ),
                         readOnly: true,
                         controller: TextEditingController(
@@ -1639,10 +1560,10 @@ String? _uploadedInvoiceUrl;
             // Notes
             TextFormField(
               controller: _notesController,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظات',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.note),
+              decoration: InputDecoration(
+                labelText: localizations?.notesLabel ?? 'Notes',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.note),
               ),
               maxLines: 3,
             ),
@@ -1653,6 +1574,7 @@ String? _uploadedInvoiceUrl;
   }
 
   Widget _buildInvoiceUploadSection() {
+  final localizations = AppLocalizations.of(context);
   return Card(
     child: Padding(
       padding: const EdgeInsets.all(16),
@@ -1663,9 +1585,9 @@ String? _uploadedInvoiceUrl;
             children: [
               const Icon(Icons.upload_file, color: Colors.purple),
               const SizedBox(width: 8),
-              const Text(
-                'رفع الفاتورة',
-                style: TextStyle(
+              Text(
+                localizations?.invoiceUpload ?? 'Upload Invoice',
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.purple,
@@ -1703,7 +1625,7 @@ String? _uploadedInvoiceUrl;
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _selectedFileName ?? 'لم يتم اختيار ملف',
+                              _selectedFileName ?? (localizations?.noFileSelected ?? 'No file selected'),
                               style: TextStyle(
                                 color: _selectedFileName != null 
                                     ? Colors.black 
@@ -1711,9 +1633,9 @@ String? _uploadedInvoiceUrl;
                               ),
                             ),
                             if (_uploadedInvoiceUrl != null)
-                              const Text(
-                                'تم الرفع بنجاح ✓',
-                                style: TextStyle(
+                              Text(
+                                localizations?.fileUploadSuccess ?? 'Uploaded successfully ✓',
+                                style: const TextStyle(
                                   color: Colors.green,
                                   fontSize: 12,
                                 ),
@@ -1735,7 +1657,7 @@ String? _uploadedInvoiceUrl;
               ElevatedButton.icon(
                 onPressed: _isLoading ? null : _pickInvoiceFile,
                 icon: const Icon(Icons.folder_open),
-                label: Text(_selectedFileName != null ? 'تغيير الملف' : 'اختيار ملف'),
+                label: Text(_selectedFileName != null ? (localizations?.changeFile ?? 'Change File') : (localizations?.chooseFile ?? 'Choose File')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
@@ -1746,15 +1668,15 @@ String? _uploadedInvoiceUrl;
                 IconButton(
                   onPressed: _removeInvoiceFile,
                   icon: const Icon(Icons.clear, color: Colors.red),
-                  tooltip: 'إزالة الملف',
+                  tooltip: localizations?.removeFile ?? 'Remove File',
                 ),
               ],
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'يُسمح برفع ملفات PDF فقط (حجم أقصى 10 ميجا)',
-            style: TextStyle(
+          Text(
+            localizations?.fileSizeLimit ?? 'Only PDF files allowed (max 10MB)',
+            style: const TextStyle(
               fontSize: 12,
               color: Colors.grey,
             ),
@@ -1957,6 +1879,7 @@ String? _uploadedInvoiceUrl;
   }
 
   Future<void> _pickInvoiceFile() async {
+  final localizations = AppLocalizations.of(context);
   try {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -1978,7 +1901,7 @@ String? _uploadedInvoiceUrl;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطأ في اختيار الملف: ${e.toString()}'),
+          content: Text('${localizations?.filePickError ?? 'File selection error'}: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1988,6 +1911,7 @@ String? _uploadedInvoiceUrl;
 
 // دالة رفع الفاتورة
 Future<void> _uploadInvoice() async {
+  final localizations = AppLocalizations.of(context);
   if (_invoiceFileBytes == null || _invoiceFileName == null) return;
   
   setState(() {
@@ -2008,8 +1932,8 @@ Future<void> _uploadInvoice() async {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم رفع الفاتورة بنجاح'),
+          SnackBar(
+            content: Text(localizations?.invoiceUploaded ?? 'Invoice uploaded successfully'),
             backgroundColor: Colors.green,
           ),
         );
@@ -2019,7 +1943,7 @@ Future<void> _uploadInvoice() async {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطأ في رفع الفاتورة: ${e.toString()}'),
+          content: Text('${localizations?.uploadError ?? 'Invoice upload error'}: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );

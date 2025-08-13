@@ -329,4 +329,223 @@ class AppLocalizationsAr extends AppLocalizations {
   String get all => "الكل";
   @override
   String get any => "أي";
-}
+
+  // Stock In Management - Arabic
+  @override
+  String get stockInManagement => "إدارة إدخال المخزون";
+
+  @override
+  String get recordStockIn => "تسجيل إدخال مخزون";
+
+  @override
+  String get editStockIn => "تعديل إدخال المخزون";
+
+  @override
+  String get deleteStockIn => "حذف إدخال المخزون";
+
+  @override
+  String get additionNumber => "رقم الإضافة";
+
+  @override
+  String get recordId => "رقم السجل";
+
+  @override
+  String get supplierTaxNumber => "الرقم الضريبي للمورد";
+
+  @override
+  String get supplierName => "اسم المورد";
+
+  @override
+  String get warehouse => "المخزن";
+
+  @override
+  String get generalInfo => "المعلومات العامة";
+
+  @override
+  String get uploadInvoice => "رفع الفاتورة";
+
+  @override
+  String get invoiceUpload => "رفع الفاتورة";
+
+  @override
+  String get noFileSelected => "لم يتم اختيار ملف";
+
+  @override
+  String get chooseFile => "اختيار ملف";
+
+  @override
+  String get changeFile => "تغيير الملف";
+
+  @override
+  String get removeFile => "إزالة الملف";
+
+  @override
+  String get searchSuppliers => "البحث عن الموردين";
+
+  @override
+  String get searchProducts => "البحث عن المنتجات";
+
+  @override
+  String get allSuppliers => "جميع الموردين";
+
+  @override
+  String get filterBySupplier => "فلتر بالمورد";
+
+  @override
+  String get fromDate => "من تاريخ";
+
+  @override
+  String get toDate => "إلى تاريخ";
+
+  @override
+  String get clearFilters => "مسح الفلاتر";
+
+  @override
+  String get noStockInRecords => "لا توجد سجلات إدخال مخزون";
+
+  @override
+  String get deleteStockInConfirmation => "هل أنت متأكد من حذف سجل إدخال المخزون؟";
+
+  @override
+  String get stockInDeleted => "تم حذف السجل بنجاح";
+
+  @override
+  String get stockInSaved => "تم حفظ السجل بنجاح";
+
+  @override
+  String get stockInUpdated => "تم تحديث السجل بنجاح";
+
+  @override
+  String get openInNewTab => "فتح في تبويب جديد";
+
+  @override
+  String get copyLink => "نسخ الرابط";
+
+  @override
+  String get linkCopied => "تم نسخ الرابط";
+
+  @override
+  String get invoiceUploaded => "تم رفع الفاتورة بنجاح";
+
+  @override
+  String get uploadError => "خطأ في رفع الفاتورة";
+
+  @override
+  String get filePickError => "خطأ في اختيار الملف";
+
+  @override
+  String get quantityRequired => "الكمية مطلوبة";
+
+  @override
+  String get invalidQuantity => "كمية غير صحيحة";
+
+  @override
+  String get unitRequired => "الوحدة مطلوبة";
+
+  @override
+  String get mustSelectSupplier => "يجب اختيار مورد";
+
+  @override
+  String get warehouseRequired => "المخزن مطلوب";
+
+  @override
+  String get searching => "جاري البحث...";
+
+  @override
+  String get deleteCannotUndo => "تحذير: لا يمكن التراجع عن هذا الإجراء!";
+
+  @override
+  String get searchByAdditionNumber => "ابحث برقم الإضافة، رقم السجل، أو اسم المنتج...";
+
+  @override
+  String get productIdLabel => "رقم المنتج *";
+
+  @override
+  String get productNameLabel => "اسم المنتج *";
+
+  @override
+  String get quantityLabel => "الكمية *";
+
+  @override
+  String get unitLabel => "الوحدة *";
+
+  @override
+  String get dateLabel => "التاريخ *";
+
+  @override
+  String get notesLabel => "ملاحظات";
+
+  @override
+  String get invoice => "الفاتورة";
+
+
+  @override
+  String get productNumber => "منتج";
+
+  @override
+  String get loadDataError => "خطأ في تحميل البيانات";
+
+  @override
+  String get retryLoading => "إعادة المحاولة";
+
+  @override
+  String get recordDeleteFailed => "فشل في حذف السجل";
+
+  @override
+  String get noStockInRecordsSubtext => "ابدأ بتسجيل أول عملية إدخال مخزون";
+
+  @override
+  String get firstStockInRecord => "تسجيل أول عملية إدخال";
+
+  @override
+  String get newStockInRecord => "تسجيل إدخال مخزون جديد";
+
+  @override
+  String get editStockInRecord => "تعديل سجل إدخال المخزون";
+
+  @override
+  String get fileUploadSuccess => "تم الرفع بنجاح ✓";
+
+  @override
+  String get fileSizeLimit => "يُسمح برفع ملفات PDF فقط (حجم أقصى 10 ميجا)";
+
+  @override
+  String get pdfOnlyAllowed => "PDF";
+  
+  @override
+  // TODO: implement deleteFailed
+  String get deleteFailed => "فشل في حذف السجل";
+
+  @override
+  // TODO: implement deleteStockInConfirm
+  String get deleteStockInConfirm => "هل أنت متأكد من حذف سجل إدخال المخزون؟";
+
+  @override
+  // TODO: implement deleteStockInTitle
+  String get deleteStockInTitle => "حذف سجل إدخال المخزون";
+
+  @override
+  // TODO: implement deleteSuccess
+  String get deleteSuccess => "تم حذف السجل بنجاح";
+
+  @override
+  // TODO: implement irreversibleWarning
+  String get irreversibleWarning => "تحذير: لا يمكن التراجع عن هذا الإجراء!";
+
+  @override
+  // TODO: implement productsSection
+  String get productsSection => "المنتجات";
+
+  @override
+  // TODO: implement recordIdLabel
+  String get recordIdLabel => "رقم السجل";
+
+  @override
+  // TODO: implement supplierFilter
+  String get supplierFilter => "فلتر بالمورد";
+
+  @override
+  // TODO: implement warehouseLabel
+  String get warehouseLabel => "المخزن";
+
+ }

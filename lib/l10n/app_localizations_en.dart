@@ -329,4 +329,223 @@ class AppLocalizationsEn extends AppLocalizations {
   String get all => "All";
   @override
   String get any => "Any";
+
+  // Stock In Management - English
+  @override
+  String get stockInManagement => "Stock In Management";
+
+  @override
+  String get recordStockIn => "Record Stock In";
+
+  @override
+  String get editStockIn => "Edit Stock In";
+
+  @override
+  String get deleteStockIn => "Delete Stock In";
+
+  @override
+  String get additionNumber => "Addition Number";
+
+  @override
+  String get recordId => "Record ID";
+
+  @override
+  String get supplierTaxNumber => "Supplier Tax Number";
+
+  @override
+  String get supplierName => "Supplier Name";
+
+  @override
+  String get warehouse => "Warehouse";
+
+  @override
+  String get generalInfo => "General Information";
+
+  @override
+  String get uploadInvoice => "Upload Invoice";
+
+  @override
+  String get invoiceUpload => "Invoice Upload";
+
+  @override
+  String get noFileSelected => "No file selected";
+
+  @override
+  String get chooseFile => "Choose File";
+
+  @override
+  String get changeFile => "Change File";
+
+  @override
+  String get removeFile => "Remove File";
+
+  @override
+  String get searchSuppliers => "Search Suppliers";
+
+  @override
+  String get searchProducts => "Search Products";
+
+  @override
+  String get allSuppliers => "All Suppliers";
+
+  @override
+  String get filterBySupplier => "Filter by Supplier";
+
+  @override
+  String get fromDate => "From Date";
+
+  @override
+  String get toDate => "To Date";
+
+  @override
+  String get clearFilters => "Clear Filters";
+
+  @override
+  String get noStockInRecords => "No stock in records";
+
+  @override
+  String get deleteStockInConfirmation => "Are you sure you want to delete this stock in record?";
+
+  @override
+  String get stockInDeleted => "Record deleted successfully";
+
+  @override
+  String get stockInSaved => "Record saved successfully";
+
+  @override
+  String get stockInUpdated => "Record updated successfully";
+
+  @override
+  String get openInNewTab => "Open in new tab";
+
+  @override
+  String get copyLink => "Copy Link";
+
+  @override
+  String get linkCopied => "Link copied";
+
+  @override
+  String get invoiceUploaded => "Invoice uploaded successfully";
+
+  @override
+  String get uploadError => "Upload error";
+
+  @override
+  String get filePickError => "File selection error";
+
+  @override
+  String get quantityRequired => "Quantity is required";
+
+  @override
+  String get invalidQuantity => "Invalid quantity";
+
+  @override
+  String get unitRequired => "Unit is required";
+
+  @override
+  String get mustSelectSupplier => "You must select a supplier";
+
+  @override
+  String get warehouseRequired => "Warehouse is required";
+
+  @override
+  String get searching => "Searching...";
+
+  @override
+  String get deleteCannotUndo => "Warning: This action cannot be undone!";
+
+  @override
+  String get searchByAdditionNumber => "Search by addition number, record ID, or product name...";
+
+  @override
+  String get productIdLabel => "Product ID *";
+
+  @override
+  String get productNameLabel => "Product Name *";
+
+  @override
+  String get quantityLabel => "Quantity *";
+
+  @override
+  String get unitLabel => "Unit *";
+
+  @override
+  String get dateLabel => "Date *";
+
+  @override
+  String get notesLabel => "Notes";
+
+  @override
+  String get invoice => "Invoice";
+
+  
+  @override
+  String get productNumber => "Product";
+
+  @override
+  String get loadDataError => "Error loading data";
+
+  @override
+  String get retryLoading => "Retry";
+
+  @override
+  String get recordDeleteFailed => "Failed to delete record";
+
+  @override
+  String get noStockInRecordsSubtext => "Start by recording your first stock in operation";
+
+  @override
+  String get firstStockInRecord => "Record First Stock In";
+
+  @override
+  String get newStockInRecord => "New Stock In Record";
+
+  @override
+  String get editStockInRecord => "Edit Stock In Record";
+
+  @override
+  String get fileUploadSuccess => "Uploaded successfully ✓";
+
+  @override
+  String get fileSizeLimit => "PDF files only (max 10MB)";
+
+  @override
+  String get pdfOnlyAllowed => "PDF";
+  
+  @override
+  // TODO: implement deleteFailed
+  String get deleteFailed => "Failed to delete record";
+
+  @override
+  // TODO: implement deleteStockInConfirm
+  String get deleteStockInConfirm => "Are you sure you want to delete this stock in record?";
+  
+  @override
+  // TODO: implement deleteStockInTitle
+  String get deleteStockInTitle => "Delete Stock In Record";
+
+  @override
+  // TODO: implement deleteSuccess
+  String get deleteSuccess => "Record deleted successfully";
+
+  @override
+  // TODO: implement irreversibleWarning
+  String get irreversibleWarning => "Warning: This action cannot be undone!";
+  
+  @override
+  // TODO: implement productsSection
+  String get productsSection => "Products";
+
+  @override
+  // TODO: implement recordIdLabel
+  String get recordIdLabel => "Record ID";
+
+  @override
+  // TODO: implement supplierFilter
+  String get supplierFilter => "Supplier Filter";
+
+  @override
+  // TODO: implement warehouseLabel
+  String get warehouseLabel => "Warehouse";
+
 }
