@@ -547,5 +547,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   // TODO: implement warehouseLabel
   String get warehouseLabel => "Warehouse";
+  
+  @override
+  // TODO: implement printPreview
+  String get printPreview => "Print Preview";
 
 }

@@ -547,5 +547,9 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   // TODO: implement warehouseLabel
   String get warehouseLabel => "المخزن";
+  
+  @override
+  // TODO: implement printPreview
+  String get printPreview => "معاينة الطباعة";
 
  }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../backend/warehouse_logic.dart';
+import 'print_warehouse_stock_screen.dart';
 
 class WarehousesScreen extends StatefulWidget {
   const WarehousesScreen({super.key});
@@ -342,12 +343,25 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                             Row(
                               children: [
                                 Text(
-                                  _isOverviewSelected 
-                                    ? 'Warehouse Overview'
-                                    : (localizations?.stockByLocation ?? 'Stock by Location'),
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const Spacer(),
+      _isOverviewSelected 
+        ? 'Warehouse Overview'
+        : (localizations?.stockByLocation ?? 'Stock by Location'),
+      style: Theme.of(context).textTheme.titleLarge,
+    ),
+    const Spacer(),
+    // زر الطباعة - يظهر فقط عند اختيار مخزن محدد
+    if (!_isOverviewSelected && _warehouses.isNotEmpty) ...[
+      ElevatedButton.icon(
+        onPressed: _printWarehouseStock,
+        icon: const Icon(Icons.print),
+        label: Text(localizations?.print ?? 'Print'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.purple,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      const SizedBox(width: 8),
+    ],
                                 if (_isOverviewSelected) ...[
                                   // Search field for overview
                                   SizedBox(
@@ -1202,4 +1216,38 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
       }
     }
   }
+
+Future<void> _printWarehouseStock() async {
+  if (_warehouses.isEmpty || _selectedWarehouse >= _warehouses.length) return;
+  
+  final selectedWarehouse = _warehouses[_selectedWarehouse];
+  final warehouseId = selectedWarehouse.id;
+  
+  if (warehouseId == null) return;
+  
+  final stocks = _warehouseStocks[warehouseId] ?? [];
+  
+  if (stocks.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No stock data available to print'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+  
+  // Navigate to print preview screen
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => PrintWarehouseStockScreen(
+        stocks: stocks,
+        warehouseName: selectedWarehouse.name,
+        warehouseCode: selectedWarehouse.code,
+      ),
+    ),
+  );
+}
+
 }

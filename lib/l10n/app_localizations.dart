@@ -117,7 +117,7 @@ abstract class AppLocalizations {
   String get manager;
   String get accountant;
   String get warehouseKeeper;
-  
+    String get printPreview;
   // Products
   String get productsTitle;
   String get addProduct;
