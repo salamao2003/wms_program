@@ -1349,34 +1349,91 @@ String? _uploadedInvoiceUrl;
                 const SizedBox(width: 12),
                 
                 // Unit
-                Expanded(
-                  flex: 2,
-                  child: DropdownButtonFormField<String>(
-                    value: controller.selectedUnit,
-                    decoration: InputDecoration(
-                      labelText: localizations?.unitLabel ?? 'Unit *',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.straighten),
+               // Unit - للقراءة فقط إذا تم تحديد منتج
+Expanded(
+  flex: 2,
+  child: controller.productUnit != null 
+    ? Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _getUnitIcon(controller.productUnit!),
+              color: Colors.blue[700],
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localizations?.unitLabel ?? 'Unit',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
                     ),
-                    items: ['piece', 'KG', 'Liter', 'Meter'].map((unit) {
-                      return DropdownMenuItem(
-                        value: unit,
-                        child: Text(unit),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        controller.selectedUnit = value;
-                      });
-                    },
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return localizations?.unitRequired ?? 'Unit is required';
-                      }
-                      return null;
-                    },
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _getUnitLabel(controller.productUnit!),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Tooltip(
+              message: 'وحدة ثابتة للمنتج',
+              child: Icon(
+                Icons.lock,
+                size: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      )
+    : DropdownButtonFormField<String>(
+        value: controller.selectedUnit ?? 'piece',
+        decoration: InputDecoration(
+          labelText: localizations?.unitLabel ?? 'Unit *',
+          border: const OutlineInputBorder(),
+          prefixIcon: const Icon(Icons.straighten),
+          helperText: 'حدد المنتج أولاً',
+        ),
+        items: ['piece', 'kg', 'liter', 'meter', 'box', 'pack'].map((unit) {
+          return DropdownMenuItem(
+            value: unit,
+            child: Row(
+              children: [
+                Icon(_getUnitIcon(unit), size: 18),
+                const SizedBox(width: 8),
+                Text(_getUnitLabel(unit)),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: controller.productUnit == null ? (value) {
+          setState(() {
+            controller.selectedUnit = value;
+          });
+        } : null, // معطل إذا تم تحديد منتج
+        validator: (value) {
+          if (value?.isEmpty ?? true) {
+            return localizations?.unitRequired ?? 'Unit is required';
+          }
+          return null;
+        },
+      ),
+),
               ],
             ),
           ],
@@ -1695,6 +1752,8 @@ String? _uploadedInvoiceUrl;
       setState(() {
         _productControllers[index].searchResults.clear();
         _productControllers[index].isSearching = false;
+        _productControllers[index].productUnit = null; // أضف هذا
+    _productControllers[index].selectedUnit = 'piece'; // reset للقيمة الافتراضية
       });
       return;
     }
@@ -1721,6 +1780,9 @@ String? _uploadedInvoiceUrl;
         
         if (exactMatch != null && mounted) {
           _productControllers[index].productNameController.text = exactMatch.name;
+
+          _productControllers[index].selectedUnit = exactMatch.unit ?? 'piece';
+  _productControllers[index].productUnit = exactMatch.unit ?? 'piece';
           setState(() {
             _productControllers[index].searchResults.clear();
           });
@@ -1741,6 +1803,8 @@ String? _uploadedInvoiceUrl;
       setState(() {
         _productControllers[index].searchResults.clear();
         _productControllers[index].isSearching = false;
+         _productControllers[index].productUnit = null; // أضف هذا
+    _productControllers[index].selectedUnit = 'piece'; // reset للقيمة الافتراضية
       });
       return;
     }
@@ -1781,6 +1845,10 @@ String? _uploadedInvoiceUrl;
   void _selectProduct(ProductSearchResult product, int index) {
     _productControllers[index].productIdController.text = product.id;
     _productControllers[index].productNameController.text = product.name;
+
+    // أضف هذه الأسطر لتعيين الوحدة
+  _productControllers[index].selectedUnit = product.unit ?? 'piece';
+  _productControllers[index].productUnit = product.unit ?? 'piece';
     setState(() {
       _productControllers[index].searchResults.clear();
       _productControllers[index].isSearching = false;
@@ -2063,6 +2131,33 @@ Future<void> _uploadInvoice() async {
     _notesController.dispose();
     super.dispose();
   }
+
+// Helper methods للوحدات
+IconData _getUnitIcon(String unit) {
+  switch (unit.toLowerCase()) {
+    case 'piece': return Icons.category;
+    case 'kg': return Icons.scale;
+    case 'liter': return Icons.water_drop;
+    case 'meter': return Icons.straighten;
+    case 'box': return Icons.inventory_2;
+    case 'pack': return Icons.backpack;
+    default: return Icons.category;
+  }
+}
+
+String _getUnitLabel(String unit) {
+  final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+  switch (unit.toLowerCase()) {
+    case 'piece': return isArabic ? 'قطعة' : 'Piece';
+    case 'kg': return isArabic ? 'كيلوجرام' : 'Kilogram';
+    case 'liter': return isArabic ? 'لتر' : 'Liter';
+    case 'meter': return isArabic ? 'متر' : 'Meter';
+    case 'box': return isArabic ? 'صندوق' : 'Box';
+    case 'pack': return isArabic ? 'عبوة' : 'Pack';
+    default: return unit;
+  }
+}
+
 }
 
 // Helper class for product row controllers
@@ -2071,6 +2166,7 @@ class ProductRowController {
   final TextEditingController productNameController = TextEditingController();
   final TextEditingController quantityController = TextEditingController();
   String? selectedUnit;
+  String? productUnit;
   List<ProductSearchResult> searchResults = [];
   bool isSearching = false;
 

@@ -168,12 +168,14 @@ class ProductSearchResult {
   final String name;
   final String supplier;
   final int? categoryId;
+  final String? unit;  // ✅ أضف هذا كـ field عادي
 
   ProductSearchResult({
     required this.id,
     required this.name,
     required this.supplier,
     this.categoryId,
+    this.unit,  // ✅ أضف هذا
   });
 
   factory ProductSearchResult.fromJson(Map<String, dynamic> json) {
@@ -182,10 +184,11 @@ class ProductSearchResult {
       name: json['name'] ?? '',
       supplier: json['supplier'] ?? '',
       categoryId: json['category_id'],
+      unit: json['unit'],  // ✅ أضف هذا
     );
   }
+  // ✅ احذف السطر get unit => null;
 }
-
 class SupplierSearchResult {
   final String id;
   final String name;
@@ -664,7 +667,7 @@ Future<ApiResponse<List<StockIn>>> getStockInRecords({
       // البحث مباشرة في جدول المنتجات
       final response = await _client
           .from('products')
-          .select('id, name, supplier, category_id')
+           .select('id, name, supplier, category_id, unit')  // ✅ أضف unit
           .or('id.ilike.%$searchTerm%,name.ilike.%$searchTerm%,supplier.ilike.%$searchTerm%')
           .limit(10)
           .order('name');

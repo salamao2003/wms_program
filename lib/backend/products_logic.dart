@@ -193,7 +193,7 @@ class ProductsLogic {
     String? supplier,
     String? supplierTaxNumber,
     String? electronicInvoiceNumber,
-    String? poNumber,
+    String? poNumber, required String unit,
   }) async {
     try {
       // التحقق من عدم تكرار الـ ID
@@ -208,6 +208,7 @@ class ProductsLogic {
           .insert({
             'id': id,
             'name': name,
+            'unit': unit, // أضف هذا
             'category_id': categoryId,
             'supplier': supplier,
             'supplier_tax_number': supplierTaxNumber,
@@ -238,13 +239,15 @@ class ProductsLogic {
     String? supplier,
     String? supplierTaxNumber,
     String? electronicInvoiceNumber,
-    String? poNumber,
+    String? poNumber, 
+    required String unit,
   }) async {
     try {
       await _supabaseService.client
           .from('products')
           .update({
             'name': name,
+            'unit': unit,  // ✅ أضف هذا السطر
             'category_id': categoryId,
             'supplier': supplier,
             'supplier_tax_number': supplierTaxNumber,

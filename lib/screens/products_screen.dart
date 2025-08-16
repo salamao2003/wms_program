@@ -26,6 +26,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
  
   String _selectedSearchField = 'id'; // أو أي قيمة أخرى غير 'all'
 
+
+
 final List<Map<String, String>> _searchFields = [
     {'value': 'id', 'label_ar': 'رقم المنتج (ID)', 'label_en': 'Product ID', 'icon': 'tag'},
     {'value': 'name', 'label_ar': 'اسم المنتج', 'label_en': 'Product Name', 'icon': 'inventory'},
@@ -381,6 +383,7 @@ final List<Map<String, String>> _searchFields = [
             columns: [
               DataColumn(label: Text(localizations?.productId ?? 'ID')),
               DataColumn(label: Text(localizations?.productName ?? 'اسم المنتج')),
+              DataColumn(label: Text(localizations?.unit ?? 'الوحدة')),
               DataColumn(label: Text(localizations?.category ?? 'الفئة')),
               DataColumn(label: Text(localizations?.supplier ?? 'المورد')),
               DataColumn(label: Text(localizations?.taxNumber ?? 'الرقم الضريبي')),
@@ -418,6 +421,22 @@ final List<Map<String, String>> _searchFields = [
                       ),
                     ),
                   ),
+                  DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          product['unit'] ?? 'piece',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
                   DataCell(
                     SizedBox(
                       width: 120,
@@ -637,6 +656,18 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   bool _isLoadingSuppliers = false;
   Supplier? _selectedSupplier;
 
+String _selectedUnit = 'piece'; // القيمة الافتراضية
+
+ // قائمة الوحدات المتاحة
+  final List<Map<String, String>> units = [
+    {'value': 'piece', 'label_ar': 'قطعة', 'label_en': 'Piece'},
+    {'value': 'kg', 'label_ar': 'كيلوجرام', 'label_en': 'Kilogram'},
+    {'value': 'liter', 'label_ar': 'لتر', 'label_en': 'Liter'},
+    {'value': 'meter', 'label_ar': 'متر', 'label_en': 'Meter'},
+    {'value': 'box', 'label_ar': 'صندوق', 'label_en': 'Box'},
+    {'value': 'pack', 'label_ar': 'عبوة', 'label_en': 'Pack'},
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -647,7 +678,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     _taxNumberController = TextEditingController(text: widget.product?['supplier_tax_number']?.toString() ?? '');
     _invoiceNumberController = TextEditingController(text: widget.product?['electronic_invoice_number']?.toString() ?? '');
     _poNumberController = TextEditingController(text: widget.product?['po_number']?.toString() ?? '');
-    
+    _selectedUnit = widget.product?['unit']?.toString() ?? 'piece';
     _loadRootCategories();
     _loadSupplierDataIfEditing();
   }
@@ -748,32 +779,97 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Product ID & Name
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _idController,
-                      enabled: !isEditing,
-                      decoration: InputDecoration(
-                        labelText: '${localizations?.productId ?? 'Product ID'} *',
-                        border: const OutlineInputBorder(),
-                        errorText: _isIdValid ? null : (localizations?.productIdExists ?? 'ID already exists'),
-                      ),
-                      onChanged: _validateId,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: '${localizations?.productName ?? 'اسم المنتج'} *',
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              // Product ID & Name & Unit
+Row(
+  children: [
+    // Product ID
+    Expanded(
+      flex: 2,
+      child: TextField(
+        controller: _idController,
+        enabled: !isEditing,
+        decoration: InputDecoration(
+          labelText: '${localizations?.productId ?? 'Product ID'} *',
+          border: const OutlineInputBorder(),
+          errorText: _isIdValid ? null : (localizations?.productIdExists ?? 'ID already exists'),
+        ),
+        onChanged: _validateId,
+      ),
+    ),
+    const SizedBox(width: 12),
+    
+    // Product Name
+    Expanded(
+      flex: 3,
+      child: TextField(
+        controller: _nameController,
+        decoration: InputDecoration(
+          labelText: '${localizations?.productName ?? 'اسم المنتج'} *',
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    ),
+    const SizedBox(width: 12),
+    
+    // Unit
+    Expanded(
+      flex: 2,
+      child: DropdownButtonFormField<String>(
+        value: _selectedUnit,
+        decoration: InputDecoration(
+          labelText: Localizations.localeOf(context).languageCode == 'ar' 
+              ? 'وحدة القياس *' 
+              : 'Unit *',
+          border: const OutlineInputBorder(),
+          prefixIcon: const Icon(Icons.straighten),
+        ),
+        items: units.map((unit) {
+          final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+          final label = isArabic ? unit['label_ar']! : unit['label_en']!;
+          
+          return DropdownMenuItem<String>(
+            value: unit['value']!,
+            child: Text(label, style: const TextStyle(fontSize: 14)),
+          );
+        }).toList(),
+        onChanged: (value) {
+          setState(() {
+            _selectedUnit = value!;
+          });
+        },
+      ),
+    ),
+  ],
+),
+const SizedBox(height: 12),
+
+// معلومات الوحدة (في صف منفصل)
+Container(
+  padding: const EdgeInsets.all(12),
+  decoration: BoxDecoration(
+    color: Colors.blue.withOpacity(0.05),
+    borderRadius: BorderRadius.circular(8),
+    border: Border.all(color: Colors.blue.withOpacity(0.2)),
+  ),
+  child: Row(
+    children: [
+      Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          Localizations.localeOf(context).languageCode == 'ar'
+              ? 'سيتم استخدام هذه الوحدة في جميع العمليات المخزنية'
+              : 'This unit will be used in all inventory operations',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.blue[700],
+          ),
+        ),
+      ),
+    ],
+  ),
+),
+const SizedBox(height: 16),
               const SizedBox(height: 16),
               
               // Categories Section
@@ -1136,6 +1232,19 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
     }
   }
 
+  // أضف هذه الدالة بعد دالة _getLevelName
+IconData _getUnitIcon(String unit) {
+  switch (unit) {
+    case 'piece': return Icons.category;
+    case 'kg': return Icons.scale;
+    case 'liter': return Icons.water_drop;
+    case 'meter': return Icons.straighten;
+    case 'box': return Icons.inventory_2;
+    case 'pack': return Icons.backpack;
+    default: return Icons.category;
+  }
+}
+
   Future<void> _validateId(String value) async {
     if (value.isEmpty || widget.product != null) return;
 
@@ -1351,6 +1460,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         await widget.productsLogic.updateProduct(
           id: _idController.text.trim(),
           name: _nameController.text.trim(),
+          unit: _selectedUnit, // أضف هذا السطر
           categoryId: _finalCategoryId,
           supplier: _supplierController.text.trim().isNotEmpty ? _supplierController.text.trim() : null,
           supplierTaxNumber: _taxNumberController.text.trim().isNotEmpty ? _taxNumberController.text.trim() : null,
@@ -1361,6 +1471,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
         await widget.productsLogic.addProduct(
           id: _idController.text.trim(),
           name: _nameController.text.trim(),
+          unit: _selectedUnit, // أضف هذا السطر
           categoryId: _finalCategoryId,
           supplier: _supplierController.text.trim().isNotEmpty ? _supplierController.text.trim() : null,
           supplierTaxNumber: _taxNumberController.text.trim().isNotEmpty ? _taxNumberController.text.trim() : null,

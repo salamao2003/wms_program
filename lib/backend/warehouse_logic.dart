@@ -345,17 +345,18 @@ class WarehouseLogic {
   Future<List<WarehouseOverviewData>> getEnhancedWarehouseOverview() async {
     try {
       // جلب جميع المنتجات مع الفئات
-       final productsResponse = await _supabase
-        .from('products')
-        .select('''
-          id, 
-          name,
-          categories!category_id (
-            id,
-            name
-          )
-        ''')
-        .order('name');
+final productsResponse = await _supabase
+  .from('products')
+  .select('''
+    id, 
+    name,
+    category_id,
+    categories (
+      id,
+      name
+    )
+  ''')
+  .order('name');
 
       // جلب جميع المخازن
       final warehousesResponse = await _supabase
@@ -423,14 +424,14 @@ class WarehouseLogic {
           }
         }
         // معالجة آمنة لاسم الفئة
-        String categoryName = 'General';
-        try {
-          if (product['category'] != null && product['category']['name'] != null) {
-            categoryName = product['category']['name'] as String;
-          }
-        } catch (e) {
-          print('Warning: Could not get category name for product $productId: $e');
-        }
+String categoryName = 'General';
+try {
+  if (product['categories'] != null && product['categories']['name'] != null) {
+    categoryName = product['categories']['name'] as String;
+  }
+} catch (e) {
+  print('Warning: Could not get category name for product $productId: $e');
+}
 
         overviewData.add(WarehouseOverviewData(
           productId: productId,
