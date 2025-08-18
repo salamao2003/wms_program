@@ -1470,11 +1470,13 @@ Expanded(
     }
     
     // Create StockOut object
-    final stockOut = StockOut(
-      id: _isEditMode ? _editingStockOut!.id : null,
-      recordId: _isEditMode ? _editingStockOut!.recordId : '',
-      exchangeNumber: _isEditMode ? _editingStockOut!.exchangeNumber : '',
-      warehouseId: _selectedDialogWarehouse ?? '',
+final stockOut = StockOut(
+  id: _isEditMode ? _editingStockOut!.id : null,
+  recordId: _isEditMode ? _editingStockOut!.recordId : '',
+  exchangeNumber: _isEditMode ? _editingStockOut!.exchangeNumber : '',
+  warehouseId: _selectedDialogType == 'transfer' 
+      ? _selectedFromWarehouse ?? ''  // في حالة transfer استخدم from_warehouse
+      : _selectedDialogWarehouse ?? '',
       warehouseName: warehouseName,
       type: _selectedDialogType,
       usageLocation: _usageLocationController.text.isEmpty 

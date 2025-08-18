@@ -156,6 +156,9 @@ class StockOutFilter {
 
 class StockOutLogic {
   final SupabaseClient _supabase = Supabase.instance.client;
+  // If your database has triggers that update warehouse_stock on stock_out_items
+  // insert/update/delete, set this to true to prevent double adjustments.
+  static const bool _stockManagedByDbTriggers = true;
 
   // ===========================
   // جلب البيانات
@@ -382,9 +385,9 @@ class StockOutLogic {
           .insert({
             'record_id': recordId,
             'exchange_number': exchangeNumber,
-            'warehouse_id': stockOut.type != 'transfer' 
-                ? stockOut.warehouseId 
-                : null,
+           'warehouse_id': stockOut.type == 'transfer' 
+    ? stockOut.fromWarehouseId  // استخدم from_warehouse_id في حالة transfer
+    : stockOut.warehouseId,
             'type': stockOut.type,
             'usage_location': stockOut.usageLocation,
             'from_warehouse_id': stockOut.type == 'transfer' 
@@ -414,8 +417,10 @@ class StockOutLogic {
           .from('stock_out_items')
           .insert(itemsToInsert);
 
-      // تحديث المخزون يدوياً (بدون Trigger)
-      await _updateWarehouseStock(stockOut, stockOutId);
+      // لا تحدّث المخزون يدوياً إذا كانت التريجرز تقوم بذلك
+      if (!_stockManagedByDbTriggers) {
+        await _updateWarehouseStock(stockOut, stockOutId);
+      }
 
     } catch (e) {
       throw Exception('Error adding stock out: $e');
@@ -435,16 +440,18 @@ class StockOutLogic {
           .delete()
           .eq('stock_out_id', stockOut.id!);
 
-      // استرجاع المخزون القديم
-      await _revertWarehouseStock(stockOut.id!);
+      // استرجاع المخزون القديم إذا لم تكن هناك تريجرز تدير ذلك
+      if (!_stockManagedByDbTriggers) {
+        await _revertWarehouseStock(stockOut.id!);
+      }
 
       // تحديث السجل الرئيسي
       await _supabase
           .from('stock_out')
           .update({
-            'warehouse_id': stockOut.type != 'transfer' 
-                ? stockOut.warehouseId 
-                : null,
+            'warehouse_id': stockOut.type == 'transfer' 
+    ? stockOut.fromWarehouseId  // استخدم from_warehouse_id في حالة transfer
+    : stockOut.warehouseId,
             'type': stockOut.type,
             'usage_location': stockOut.usageLocation,
             'from_warehouse_id': stockOut.type == 'transfer' 
@@ -471,8 +478,10 @@ class StockOutLogic {
           .from('stock_out_items')
           .insert(itemsToInsert);
 
-      // تحديث المخزون بالقيم الجديدة
-      await _updateWarehouseStock(stockOut, stockOut.id!);
+      // تحديث المخزون بالقيم الجديدة إذا لم تكن هناك تريجرز
+      if (!_stockManagedByDbTriggers) {
+        await _updateWarehouseStock(stockOut, stockOut.id!);
+      }
 
     } catch (e) {
       throw Exception('Error updating stock out: $e');
@@ -482,8 +491,10 @@ class StockOutLogic {
   /// حذف سجل صرف
   Future<void> deleteStockOut(int id) async {
     try {
-      // استرجاع المخزون أولاً
-      await _revertWarehouseStock(id);
+      // استرجاع المخزون أولاً إذا لم تكن هناك تريجرز تدير ذلك
+      if (!_stockManagedByDbTriggers) {
+        await _revertWarehouseStock(id);
+      }
 
       // حذف السجل (المنتجات ستحذف تلقائياً بسبب CASCADE)
       await _supabase
