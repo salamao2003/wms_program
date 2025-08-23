@@ -60,16 +60,9 @@ class _PrintStockOutScreenState extends State<PrintStockOutScreen> {
         canChangeOrientation: false,
         canChangePageFormat: false,
         canDebug: false,
+        useActions: false,
         initialPageFormat: PdfPageFormat.a4,
         previewPageMargin: const EdgeInsets.all(16),
-        actions: [
-          PdfPreviewAction(
-            icon: const Icon(Icons.save_alt, color: Colors.white),
-            onPressed: (context, build, pageFormat) async {
-              await _downloadPdf();
-            },
-          ),
-        ],
         onPrinted: (context) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

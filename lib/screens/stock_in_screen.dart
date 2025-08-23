@@ -553,13 +553,13 @@ class _StockInScreenState extends State<StockInScreen> {
                     children: [
                       // Edit button
                       IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                        icon: const Icon(Icons.edit, color: Colors.blue,),
                         onPressed: () => _showStockInDialog(stockIn: stockIn),
                         tooltip: localizations?.edit ?? 'Edit',
                       ),
                       // Delete button
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                        icon: const Icon(Icons.delete, color: Colors.red,),
                         onPressed: () => _confirmDeleteStockIn(stockIn),
                         tooltip: localizations?.delete ?? 'Delete',
                       ),
@@ -622,7 +622,7 @@ class _StockInScreenState extends State<StockInScreen> {
    ),
                       // Print button
                       IconButton(
-                        icon: const Icon(Icons.print, color: Colors.purple, size: 18),
+                        icon: const Icon(Icons.print, color: Colors.purple, ),
                         onPressed: () => _printStockIn(stockIn),
                         tooltip: localizations?.print ?? 'Print',
                       ),

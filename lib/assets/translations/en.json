@@ -73,7 +73,7 @@
     "category": "Category",
     "quantity": "Quantity",
     "unit": "Unit",
-    "delete_confirmation": "Are you sure you want to delete this warehouse?"
+    "delete_confirmation_warehouse": "Are you sure you want to delete this warehouse?"
   },
   
   "products": {

@@ -78,14 +78,8 @@ class _MainLayoutState extends State<MainLayout> {
           NavigationItem(Icons.warehouse, localizations?.warehouses ?? 'المخازن', WarehousesScreen()),
           NavigationItem(Icons.input, localizations?.stockIn ?? 'إدخال مخزون', StockInScreen()),
           NavigationItem(Icons.output, localizations?.stockOut ?? 'إخراج مخزون', StockOutScreen()),
-          NavigationItem(Icons.history, localizations?.transactions ?? 'المعاملات', TransactionsScreen()),
-          NavigationItem(Icons.inventory_2, localizations?.inventoryCount ?? 'جرد المخزون', InventoryCountScreen()),
-          NavigationItem(Icons.assessment, localizations?.reports ?? 'التقارير', ReportsScreen()),
           NavigationItem(Icons.business, localizations?.suppliers ?? 'الموردين', SuppliersScreen()),
-          NavigationItem(Icons.people, localizations?.customers ?? 'العملاء', CustomersScreen()),
-          NavigationItem(Icons.admin_panel_settings, localizations?.users ?? 'المستخدمين', UsersRolesScreen()),
-          NavigationItem(Icons.settings, localizations?.settings ?? 'الإعدادات', _buildPlaceholderScreen('صفحة الاعدادات', 'هذه الصفحة تحت  الإنشاء')),
-          NavigationItem(Icons.mail, localizations?.invitations ?? 'إدارة الدعوات', const InvitationsManagementScreen()),
+         NavigationItem(Icons.mail, localizations?.invitations ?? 'إدارة الدعوات', const InvitationsManagementScreen()),
         ];
         
       case 'warehouse_manager':
@@ -693,9 +687,42 @@ Container(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.language,
-                  size: 20,
+                Container(
+                  width: 24,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 1,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: Image.asset(
+                      languageService.isArabic 
+                          ? 'assets/images/Palestine flag.jpg'
+                          : 'assets/images/USA flag.jpg',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: languageService.isArabic ? Colors.green : Colors.blue,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Center(
+                            child: Text(
+                              languageService.isArabic ? 'AR' : 'EN',
+                              style: const TextStyle(color: Colors.white, fontSize: 8),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
                 if (_isRailExtended) ...[
                   const SizedBox(width: 8),
@@ -733,7 +760,38 @@ Container(
             
             // Arabic Option
             ListTile(
-              leading: const Text('🇸🇦', style: TextStyle(fontSize: 24)),
+              leading: Container(
+                width: 32,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.asset(
+                    'assets/images/Palestine flag.jpg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Center(
+                          child: Text('AR', style: TextStyle(color: Colors.white, fontSize: 10)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
               title: Text(AppLocalizations.of(context)?.arabic ?? 'العربية'),
               trailing: languageService.isArabic 
                   ? const Icon(Icons.check_circle, color: Colors.green)
@@ -746,7 +804,38 @@ Container(
             
             // English Option
             ListTile(
-              leading: const Text('🇺🇸', style: TextStyle(fontSize: 24)),
+              leading: Container(
+                width: 32,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.asset(
+                    'assets/images/USA flag.jpg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Center(
+                          child: Text('EN', style: TextStyle(color: Colors.white, fontSize: 10)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
               title: Text(AppLocalizations.of(context)?.english ?? 'English'),
               trailing: languageService.isEnglish 
                   ? const Icon(Icons.check_circle, color: Colors.green)

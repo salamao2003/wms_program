@@ -64,7 +64,7 @@ class PrintStockOutLogic {
               
               // Title
               pw.Text(
-                'Exchange Permit',
+                'Goods Issue Permit',
                 textAlign: pw.TextAlign.center,
                 textDirection: pw.TextDirection.ltr,
                 style: pw.TextStyle(fontSize: 16),

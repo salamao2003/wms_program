@@ -217,7 +217,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
               ),
               ElevatedButton.icon(
                 onPressed: () => _showAddEditDialog(),
-                icon: const Icon(Icons.add, size: 20),
+                icon: const Icon(Icons.add, size: 20, color: Colors.white),
                 label: Text(isRTL ? 'تسجيل صرف' : 'Record Stock Out'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryColor,
@@ -242,7 +242,9 @@ class _StockOutScreenState extends State<StockOutScreen> {
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: isRTL ? 'بحث...' : 'Search...',
+                    hintText: isRTL 
+                        ? 'بحث برقم الصرف أو رقم السجل أو كود المنتج...'
+                        : 'Search by Exchange No, Record ID , or Product ID...',
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
                     fillColor: isDarkMode ? const Color(0xFF2C2C2C) : Colors.grey[100],
@@ -1249,7 +1251,9 @@ Expanded(
                   decoration: InputDecoration(
                     labelText: isRTL ? 'من مخزن' : 'From Warehouse',
                     filled: true,
-                    fillColor: isDarkMode ? const Color(0xFF2C2C2C) : Colors.grey[50],
+                    fillColor: _isEditMode 
+                        ? (isDarkMode ? const Color(0xFF3C3C3C) : Colors.grey[200])
+                        : (isDarkMode ? const Color(0xFF2C2C2C) : Colors.grey[50]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
@@ -1261,7 +1265,7 @@ Expanded(
                       child: Text((warehouse['name'] ?? '').toString()),
                     ),
                   ).toList(),
-                  onChanged: (value) {
+                  onChanged: _isEditMode ? null : (value) {
                     setDialogState(() {
                       _selectedFromWarehouse = value;
                     });

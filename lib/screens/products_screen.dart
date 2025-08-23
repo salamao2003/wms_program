@@ -131,8 +131,15 @@ final List<Map<String, String>> _searchFields = [
           ],
           ElevatedButton.icon(
             onPressed: () => _showProductDialog(),
-            icon: const Icon(Icons.add),
-            label: Text(localizations?.addProduct ?? 'Add Product'),
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: Text(
+              localizations?.addProduct ?? 'Add Product',
+              style: const TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
           ),
           const SizedBox(width: 16),
         ],
@@ -928,15 +935,22 @@ const SizedBox(height: 16),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _saveProduct,
+          style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+          ),
           child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(isEditing 
-                  ? (localizations?.edit ?? 'تحديث') 
-                  : (localizations?.add ?? 'إضافة')),
+          ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+            )
+          : Text(isEditing 
+          ? (localizations?.edit ?? 'تحديث') 
+          : (localizations?.add ?? 'إضافة')),
         ),
       ],
     );

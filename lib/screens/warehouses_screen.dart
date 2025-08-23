@@ -177,11 +177,15 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
         title: Text(localizations?.warehousesTitle ?? 'Warehouses'),
         automaticallyImplyLeading: false,
         actions: [
-          ElevatedButton.icon(
+            ElevatedButton.icon(
             onPressed: () => _showWarehouseDialog(),
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, color: Colors.white),
             label: Text(localizations?.addWarehouse ?? 'Add Warehouse'),
-          ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            ),
           const SizedBox(width: 16),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -249,7 +253,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                                     value: 'edit',
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.edit),
+                                        const Icon(Icons.edit, color: Colors.orange),
                                         const SizedBox(width: 8),
                                         Text(localizations?.edit ?? 'Edit'),
                                       ],
@@ -259,7 +263,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                                     value: 'delete',
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.delete),
+                                        const Icon(Icons.delete, color: Colors.red),
                                         const SizedBox(width: 8),
                                         Text(localizations?.delete ?? 'Delete'),
                                       ],
@@ -311,7 +315,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                                 ),
                                 const Spacer(),
                                 IconButton(
-                                  icon: const Icon(Icons.edit),
+                                  icon: const Icon(Icons.edit, color: Colors.orange),
                                   onPressed: () => _showWarehouseDialog(
                                     warehouse: _warehouses[_selectedWarehouse],
                                   ),

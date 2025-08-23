@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:warehouse_management_system/l10n/app_localizations.dart';
 import 'package:warehouse_management_system/screens/login_screen.dart';
 import 'package:warehouse_management_system/screens/main_layout.dart';
+import 'package:warehouse_management_system/screens/splash_screen.dart';
 import 'package:warehouse_management_system/services/language_service.dart';
 import 'package:warehouse_management_system/theme/app_theme.dart';
 
@@ -48,7 +49,7 @@ class WMSApp extends StatelessWidget {
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const LoginScreen(),
+            home: const SplashScreen(),
             routes: {
               '/login': (context) => const LoginScreen(),
               '/main': (context) => const MainLayout(),

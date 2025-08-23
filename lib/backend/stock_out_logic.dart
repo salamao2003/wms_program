@@ -186,16 +186,7 @@ class StockOutLogic {
 
       // تطبيق الفلاتر
       if (filter != null) {
-        // فلتر البحث
-        if (filter.searchQuery != null && filter.searchQuery!.isNotEmpty) {
-          query = query.or(
-            'record_id.ilike.%${filter.searchQuery}%,'
-            'exchange_number.ilike.%${filter.searchQuery}%,'
-            'notes.ilike.%${filter.searchQuery}%'
-          );
-        }
-
-        // فلتر النوع
+        // فلتر البحث - نحتاج تطبيق الفلترة بعد جلب البيانات لأن البحث في stock_out_items معقد
         if (filter.type != null && filter.type!.isNotEmpty) {
           query = query.eq('type', filter.type!);
         }
@@ -222,7 +213,8 @@ class StockOutLogic {
           .order('date', ascending: false)
           .order('created_at', ascending: false);
 
-      return (response as List).map((data) {
+      // تحويل البيانات إلى كائنات StockOut
+      List<StockOut> stockOuts = (response as List).map((data) {
         // معالجة البيانات
         final warehouseData = data['warehouses'];
         final fromWarehouseData = data['from_warehouse'];
@@ -245,11 +237,11 @@ class StockOutLogic {
           notes: data['notes'],
           items: itemsData.map((item) => StockOutItem(
             recordId: item['record_id'],  // ← تأكد من وجود هذا السطر
-  productId: item['product_id'],
-  productName: item['products']?['name'] ?? '',  // جلب اسم المنتج
-  quantity: (item['quantity'] ?? 0).toDouble(),
-  unit: item['unit'] ?? '',
-)).toList(),
+            productId: item['product_id'],
+            productName: item['products']?['name'] ?? '',  // جلب اسم المنتج
+            quantity: (item['quantity'] ?? 0).toDouble(),
+            unit: item['unit'] ?? '',
+          )).toList(),
           createdAt: data['created_at'] != null 
               ? DateTime.parse(data['created_at']) 
               : null,
@@ -259,6 +251,42 @@ class StockOutLogic {
           createdBy: data['created_by'],
         );
       }).toList();
+
+      // تطبيق فلتر البحث بعد جلب البيانات
+      if (filter?.searchQuery != null && filter!.searchQuery!.isNotEmpty) {
+        final searchQuery = filter.searchQuery!.toLowerCase();
+        stockOuts = stockOuts.where((stockOut) {
+          // البحث في record_id الخاص بـ stock_out
+          if (stockOut.recordId.toLowerCase().contains(searchQuery)) {
+            return true;
+          }
+          
+          // البحث في exchange_number
+          if (stockOut.exchangeNumber.toLowerCase().contains(searchQuery)) {
+            return true;
+          }
+          
+          // البحث في product_id و record_id لأي من المنتجات في stock_out_items
+          for (final item in stockOut.items) {
+            if (item.productId.toLowerCase().contains(searchQuery)) {
+              return true;
+            }
+            // البحث في record_id الموجود في stock_out_items
+            if (item.recordId?.toLowerCase().contains(searchQuery) == true) {
+              return true;
+            }
+          }
+          
+          // البحث في الملاحظات
+          if (stockOut.notes?.toLowerCase().contains(searchQuery) == true) {
+            return true;
+          }
+          
+          return false;
+        }).toList();
+      }
+
+      return stockOuts;
     } catch (e) {
       throw Exception('Error fetching stock outs: $e');
     }
