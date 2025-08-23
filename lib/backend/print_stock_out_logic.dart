@@ -115,23 +115,23 @@ class PrintStockOutLogic {
     if (stockOut.type == 'transfer') {
       rows.add(pw.TableRow(children: [
         _buildCell('From Warehouse /', true),
-        _buildCell(stockOut.fromWarehouseName ?? '', false, isArabic: true),
+        _buildCell(stockOut.fromWarehouseName ?? '', false, isArabic: false),
       ]));
       rows.add(pw.TableRow(children: [
         _buildCell('To Warehouse/', true),
-        _buildCell(stockOut.toWarehouseName ?? '', false, isArabic: true),
+        _buildCell(stockOut.toWarehouseName ?? '', false, isArabic: false),
       ]));
     } else {
       rows.add(pw.TableRow(children: [
         _buildCell('Warehouse /', true),
-        _buildCell(stockOut.warehouseName, false, isArabic: true),
+        _buildCell(stockOut.warehouseName, false, isArabic: false),
       ]));
     }
 
     // Usage Location
     rows.add(pw.TableRow(children: [
       _buildCell('Usage Location/', true),
-      _buildCell(stockOut.usageLocation ?? '', false, isArabic: true),
+      _buildCell(stockOut.usageLocation ?? '', false, isArabic: false),
     ]));
 
     // Date
@@ -208,7 +208,7 @@ class PrintStockOutLogic {
       child: pw.Text(
         text,
         textDirection: isArabic ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-        textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.left,
+        textAlign: isArabic ? pw.TextAlign.right : pw.TextAlign.center,
         style: isHeader ? pw.TextStyle(fontWeight: pw.FontWeight.bold) : null,
       ),
     );
