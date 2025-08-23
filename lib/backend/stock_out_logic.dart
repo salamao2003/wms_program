@@ -9,12 +9,14 @@ import 'warehouse_logic.dart';
 // ===========================
 
 class StockOutItem {
+    final String? recordId;  // أضف هذا
   final String productId;
   final String productName;
   final double quantity;
   final String unit;
 
   StockOutItem({
+        this.recordId,  // أضف هذا
     required this.productId,
     required this.productName,
     required this.quantity,
@@ -32,6 +34,7 @@ class StockOutItem {
 
   factory StockOutItem.fromJson(Map<String, dynamic> json) {
     return StockOutItem(
+            recordId: json['record_id'],  // أضف هذا
       productId: json['product_id'] ?? '',
       productName: json['product_name'] ?? '',
       quantity: (json['quantity'] ?? 0).toDouble(),
@@ -176,6 +179,7 @@ class StockOutLogic {
             to_warehouse:warehouses!to_warehouse_id(id, name, code),
             stock_out_items(
   *,
+   record_id,
   products(id, name)
 )
           ''');
@@ -240,6 +244,7 @@ class StockOutLogic {
           date: DateTime.parse(data['date']),
           notes: data['notes'],
           items: itemsData.map((item) => StockOutItem(
+            recordId: item['record_id'],  // ← تأكد من وجود هذا السطر
   productId: item['product_id'],
   productName: item['products']?['name'] ?? '',  // جلب اسم المنتج
   quantity: (item['quantity'] ?? 0).toDouble(),
@@ -297,6 +302,7 @@ class StockOutLogic {
         date: DateTime.parse(response['date']),
         notes: response['notes'],
         items: itemsData.map((item) => StockOutItem(
+          recordId: item['record_id'],  // ← تأكد من وجود هذا السطر
           productId: item['product_id'],
           productName: item['products']?['name'] ?? '',
           quantity: (item['quantity'] ?? 0).toDouble(),

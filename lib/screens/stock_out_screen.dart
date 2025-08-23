@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import '../backend/stock_out_logic.dart';
 import '../theme/app_theme.dart';
+import 'print_stock_out_screen.dart';
 
 class StockOutScreen extends StatefulWidget {
   const StockOutScreen({super.key});
@@ -487,12 +488,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
         ? (isDarkMode ? const Color(0xFF252525) : Colors.grey[50])
         : (isDarkMode ? const Color(0xFF1E1E1E) : Colors.white);
 
-    // حساب إجمالي الكميات
-    double totalQuantity = 0;
-    for (var item in stockOut.items) {
-      totalQuantity += item.quantity;
-    }
-
+    
     // تحديد لون النوع
     Color typeColor;
     switch (stockOut.type) {
@@ -539,13 +535,18 @@ class _StockOutScreenState extends State<StockOutScreen> {
           ),
           
           // Record ID
-          Expanded(
-            flex: 1,
-            child: Text(
-              stockOut.recordId,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
+          // عرض record_id لكل item
+Expanded(
+  flex: 1,
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: stockOut.items.map((item) => Text(
+      item.recordId ?? 'N/A',
+      style: const TextStyle(fontSize: 11),
+      overflow: TextOverflow.ellipsis,
+    )).toList(),
+  ),
+),
           
           // Date
           Expanded(
@@ -583,16 +584,17 @@ Expanded(
 ),
           
           // Total Quantity
-          Expanded(
-            flex: 1,
-            child: Text(
-              totalQuantity.toStringAsFixed(2),
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
+          // Quantity - عرض كمية كل منتج منفصلة
+Expanded(
+  flex: 1,
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: stockOut.items.map((item) => Text(
+      item.quantity.toStringAsFixed(2),
+      style: const TextStyle(fontSize: 11),
+    )).toList(),
+  ),
+),
 
           // Unit
 Expanded(
@@ -1566,9 +1568,13 @@ final stockOut = StockOut(
   }
 
   void _printStockOut(StockOut stockOut) {
-    // TODO: Implement print functionality
-    _showSnackBar('Print functionality will be implemented later');
-  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => PrintStockOutScreen(stockOut: stockOut),
+    ),
+  );
+}
 
   // ===========================
   // Helper Methods
