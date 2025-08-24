@@ -222,7 +222,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                 ),
               ),
               // Hide Add button for project_manager
-              if (_userRole != 'project_manager')
+              if (_userRole != null && _userRole != 'project_manager')
                 ElevatedButton.icon(
                   onPressed: () => _showAddEditDialog(),
                   icon: const Icon(Icons.add, size: 20, color: Colors.white),

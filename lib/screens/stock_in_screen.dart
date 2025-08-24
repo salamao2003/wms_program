@@ -133,14 +133,14 @@ class _StockInScreenState extends State<StockInScreen> {
               ),
             ),
           ],
-          // Hide Add button for project_manager
-          if (_userRole != 'project_manager')
+          // Hide Add button for project_manager and during loading
+          if (_userRole != null && _userRole != 'project_manager')
             ElevatedButton.icon(
               onPressed: () => _showStockInDialog(),
-              icon: const Icon(Icons.add),
-              label: Text(localizations?.add ?? 'Add'),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: Text(localizations?.recordStockIn ?? 'Add'), 
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
               ),
             ),

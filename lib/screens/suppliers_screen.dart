@@ -13,15 +13,26 @@ class SuppliersScreen extends StatefulWidget {
 class _SuppliersScreenState extends State<SuppliersScreen> {
   final SupplierLogic _supplierLogic = SupplierLogic();
   final MainLayoutLogic _layoutLogic = MainLayoutLogic();
+  final TextEditingController _searchController = TextEditingController();
+  
   List<Supplier> _suppliers = [];
+  List<Supplier> _filteredSuppliers = [];
+  List<String> _specializations = [];
   bool _isLoading = true;
   String? _errorMessage;
   String? _userRole;
+  String? _selectedSpecialization;
 
   @override
   void initState() {
     super.initState();
     _loadSuppliers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSuppliers() async {
@@ -35,8 +46,17 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       _userRole = await _layoutLogic.getCurrentUserRole();
       
       final suppliers = await _supplierLogic.getSuppliers();
+      
+      // استخراج قائمة التخصصات المميزة
+      final specializationsSet = suppliers
+          .map((s) => s.specialization)
+          .where((s) => s.isNotEmpty)
+          .toSet();
+      
       setState(() {
         _suppliers = suppliers;
+        _filteredSuppliers = suppliers;
+        _specializations = specializationsSet.toList()..sort();
         _isLoading = false;
       });
     } catch (e) {
@@ -47,9 +67,35 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     }
   }
 
+  void _filterSuppliers() {
+    final searchQuery = _searchController.text.toLowerCase().trim();
+    
+    setState(() {
+      _filteredSuppliers = _suppliers.where((supplier) {
+        final matchesSearch = searchQuery.isEmpty ||
+            supplier.name.toLowerCase().contains(searchQuery) ||
+            supplier.taxNumber.toLowerCase().contains(searchQuery);
+        
+        final matchesSpecialization = _selectedSpecialization == null ||
+            supplier.specialization == _selectedSpecialization;
+        
+        return matchesSearch && matchesSpecialization;
+      }).toList();
+    });
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedSpecialization = null;
+      _filteredSuppliers = _suppliers;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isRTL = Localizations.localeOf(context).languageCode == 'ar';
     
     if (_isLoading) {
       return Scaffold(
@@ -84,86 +130,204 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     }
     
     return Scaffold(
+      backgroundColor: Theme.of(context).brightness == Brightness.dark 
+          ? const Color(0xFF121212) 
+          : Colors.grey[50],
       appBar: AppBar(
         title: Text(localizations?.suppliers ?? 'Suppliers'),
         automaticallyImplyLeading: false,
         actions: [
           // Hide Add Supplier button for warehouse_manager and project_manager
-          if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+            if (_userRole != null && _userRole != 'warehouse_manager' && _userRole != 'project_manager')
             ElevatedButton.icon(
               onPressed: () => _showSupplierDialog(),
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add, color: Colors.white),
               label: Text(localizations?.add ?? 'Add Supplier'),
+              style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              ),
             ),
           const SizedBox(width: 16),
         ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Card(
-          child: _suppliers.isEmpty 
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text(
-                    'No suppliers found\nClick "Add Supplier" to get started',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16),
+        child: Column(
+          children: [
+            // Search and Filter Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? const Color(0xFF1E1E1E) 
+                    : Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Search Field
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: isRTL ? 'البحث بالاسم أو الرقم الضريبي...' : 'Search by name or tax number...',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF2C2C2C) 
+                            : Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onChanged: (value) => _filterSuppliers(),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Specialization Filter
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String?>(
+                      value: _selectedSpecialization,
+                      decoration: InputDecoration(
+                        labelText: isRTL ? 'التخصص' : 'Specialization',
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? const Color(0xFF2C2C2C) 
+                            : Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(isRTL ? 'الكل' : 'All'),
+                        ),
+                        ..._specializations.map(
+                          (specialization) => DropdownMenuItem<String?>(
+                            value: specialization,
+                            child: Text(specialization),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedSpecialization = value;
+                        });
+                        _filterSuppliers();
+                      },
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // Clear Filters Button
+                  if (_searchController.text.isNotEmpty || _selectedSpecialization != null)
+                    IconButton(
+                      onPressed: _clearFilters,
+                      icon: const Icon(Icons.clear),
+                      tooltip: isRTL ? 'مسح الفلاتر' : 'Clear Filters',
+                    ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Data Table
+            Expanded(
+              child: Card(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? const Color(0xFF1E1E1E) 
+                    : Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: Theme.of(context).brightness == Brightness.dark ? 4 : 2,
+                child: _filteredSuppliers.isEmpty 
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Text(
+                          _suppliers.isEmpty 
+                            ? (isRTL ? 'لا توجد موردين\nاضغط "إضافة مورد" للبدء' : 'No suppliers found\nClick "Add Supplier" to get started')
+                            : (isRTL ? 'لا توجد نتائج مطابقة للبحث' : 'No results match your search'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                  child: DataTable(
+                    columns: [
+                      DataColumn(label: Text(localizations?.name ?? (isRTL ? 'الاسم' : 'Name'))),
+                      DataColumn(label: Text(localizations?.taxNumber ?? (isRTL ? 'الرقم الضريبي' : 'Tax Number'))),
+                      DataColumn(label: Text(isRTL ? 'التخصص' : 'Specialization')),
+                      DataColumn(label: Text(localizations?.address ?? (isRTL ? 'العنوان' : 'Address'))),
+                      // Hide Actions column for warehouse_manager and project_manager
+                      if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+                        DataColumn(label: Text(localizations?.actions ?? (isRTL ? 'الإجراءات' : 'Actions'))),
+                    ],
+                    rows: _filteredSuppliers.map((supplier) {
+                      final cells = [
+                        DataCell(Text(supplier.name)),
+                        DataCell(Text(supplier.taxNumber)),
+                        DataCell(Text(supplier.specialization)),
+                        DataCell(
+                          SizedBox(
+                            width: 200,
+                            child: Text(
+                              supplier.address,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ];
+                      
+                      // Add Actions cell only if not warehouse_manager or project_manager
+                      if (_userRole != 'warehouse_manager' && _userRole != 'project_manager') {
+                        cells.add(
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.orange),
+                                  onPressed: () => _showSupplierDialog(supplier: supplier),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _deleteSupplier(supplier),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      return DataRow(cells: cells);
+                    }).toList(),
                   ),
                 ),
-              )
-            : SingleChildScrollView(
-            child: DataTable(
-              columns: [
-                DataColumn(label: Text(localizations?.name ?? 'Name')),
-                DataColumn(label: Text(localizations?.taxNumber ?? 'Tax Number')),
-                DataColumn(label: Text('Specialization')),
-                DataColumn(label: Text(localizations?.address ?? 'Address')),
-                // Hide Actions column for warehouse_manager and project_manager
-                if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
-                  DataColumn(label: Text(localizations?.actions ?? 'Actions')),
-              ],
-              rows: _suppliers.map((supplier) {
-                final cells = [
-                  DataCell(Text(supplier.name)),
-                  DataCell(Text(supplier.taxNumber)),
-                  DataCell(Text(supplier.specialization)),
-                  DataCell(
-                    SizedBox(
-                      width: 200,
-                      child: Text(
-                        supplier.address,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ];
-                
-                // Add Actions cell only if not warehouse_manager or project_manager
-                if (_userRole != 'warehouse_manager' && _userRole != 'project_manager') {
-                  cells.add(
-                    DataCell(
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _showSupplierDialog(supplier: supplier),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _deleteSupplier(supplier),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                
-                return DataRow(cells: cells);
-              }).toList(),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -171,6 +335,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
 
   void _showSupplierDialog({Supplier? supplier}) {
     final localizations = AppLocalizations.of(context);
+    final isRTL = Localizations.localeOf(context).languageCode == 'ar';
     final isEditing = supplier != null;
     final nameController = TextEditingController(text: supplier?.name ?? '');
     final taxNumberController = TextEditingController(text: supplier?.taxNumber ?? '');
@@ -180,7 +345,9 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isEditing ? (localizations?.edit ?? 'Edit Supplier') : (localizations?.add ?? 'Add Supplier')),
+        title: Text(isEditing 
+            ? (localizations?.edit ?? (isRTL ? 'تعديل مورد' : 'Edit Supplier'))
+            : (localizations?.add ?? (isRTL ? 'إضافة مورد' : 'Add Supplier'))),
         content: SizedBox(
           width: 500,
           child: SingleChildScrollView(
@@ -190,7 +357,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(
-                    labelText: localizations?.name ?? 'Supplier Name',
+                    labelText: localizations?.name ?? (isRTL ? 'اسم المورد' : 'Supplier Name'),
                     border: const OutlineInputBorder(),
                   ),
                 ),
@@ -198,23 +365,23 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 TextField(
                   controller: taxNumberController,
                   decoration: InputDecoration(
-                    labelText: localizations?.taxNumber ?? 'Tax Number',
+                    labelText: localizations?.taxNumber ?? (isRTL ? 'الرقم الضريبي' : 'Tax Number'),
                     border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: specializationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Specialization',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isRTL ? 'التخصص' : 'Specialization',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: addressController,
                   decoration: InputDecoration(
-                    labelText: localizations?.address ?? 'Address',
+                    labelText: localizations?.address ?? (isRTL ? 'العنوان' : 'Address'),
                     border: const OutlineInputBorder(),
                   ),
                   maxLines: 2,
@@ -244,11 +411,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                   
                   if (taxExists) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Tax number already exists'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                  SnackBar(
+                    content: Text(isRTL ? 'الرقم الضريبي موجود بالفعل' : 'Tax number already exists'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
                     return;
                   }
 
@@ -266,7 +433,8 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                   }
                   
                   Navigator.pop(context);
-                  _loadSuppliers(); // إعادة تحميل البيانات
+                  await _loadSuppliers(); // إعادة تحميل البيانات
+                  _filterSuppliers(); // إعادة تطبيق الفلاتر
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -277,14 +445,16 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 }
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please fill all fields'),
+                  SnackBar(
+                    content: Text(isRTL ? 'يرجى ملء جميع الحقول' : 'Please fill all fields'),
                     backgroundColor: Colors.red,
                   ),
                 );
               }
             },
-            child: Text(isEditing ? (localizations?.edit ?? 'Update') : (localizations?.add ?? 'Add')),
+            child: Text(isEditing 
+                ? (localizations?.edit ?? (isRTL ? 'تحديث' : 'Update')) 
+                : (localizations?.add ?? (isRTL ? 'إضافة' : 'Add'))),
           ),
         ],
       ),
@@ -293,23 +463,25 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
 
   Future<void> _deleteSupplier(Supplier supplier) async {
     final localizations = AppLocalizations.of(context);
+    final isRTL = Localizations.localeOf(context).languageCode == 'ar';
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.delete ?? 'Delete Supplier'),
-        content: Text('${localizations?.deleteConfirmation ?? "Are you sure you want to delete"} ${supplier.name}?'),
+        title: Text(localizations?.delete ?? (isRTL ? 'حذف مورد' : 'Delete Supplier')),
+        content: Text('${localizations?.deleteConfirmation ?? (isRTL ? "هل أنت متأكد من حذف" : "Are you sure you want to delete")} ${supplier.name}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(localizations?.cancel ?? (isRTL ? 'إلغاء' : 'Cancel')),
           ),
           ElevatedButton(
             onPressed: () async {
               try {
                 await _supplierLogic.deleteSupplier(supplier.id!);
                 Navigator.pop(context);
-                _loadSuppliers(); // إعادة تحميل البيانات
+                await _loadSuppliers(); // إعادة تحميل البيانات
+                _filterSuppliers(); // إعادة تطبيق الفلاتر
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -323,7 +495,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text(localizations?.delete ?? 'Delete'),
+            child: Text(localizations?.delete ?? (isRTL ? 'حذف' : 'Delete')),
           ),
         ],
       ),

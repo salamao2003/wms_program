@@ -326,8 +326,8 @@ class _MainLayoutState extends State<MainLayout> {
             : ['إدارة المخزون', 'إدخال وإخراج'];
       case 'project_manager':
         return isEnglish
-            ? ['View Reports', 'Transaction Monitoring', 'Inventory Results']
-            : ['عرض التقارير', 'متابعة المعاملات', 'نتائج الجرد'];
+            ? ['View Reports']
+            : ['عرض التقارير'];
       default:
         return isEnglish ? ['Limited Permissions'] : ['صلاحيات محدودة'];
     }
