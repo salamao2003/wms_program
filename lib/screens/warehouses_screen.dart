@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../backend/warehouse_logic.dart';
+import '../backend/main_layout_logic.dart';
 import 'print_warehouse_stock_screen.dart';
 
 class WarehousesScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
   bool _isOverviewSelected = true; // Overview selected by default
   
   final WarehouseLogic _warehouseLogic = WarehouseLogic();
+  final MainLayoutLogic _layoutLogic = MainLayoutLogic();
   List<Warehouse> _warehouses = [];
   Map<String, List<WarehouseStock>> _warehouseStocks = {};
   
@@ -31,6 +33,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
   
   bool _isLoading = true;
   String? _errorMessage;
+  String? _userRole;
 
   // Controller for horizontal scrolling of the overview table
   final ScrollController _overviewHScrollController = ScrollController();
@@ -54,6 +57,9 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
         _isLoading = true;
         _errorMessage = null;
       });
+      
+      // جلب دور المستخدم
+      _userRole = await _layoutLogic.getCurrentUserRole();
       
       final warehouses = await _warehouseLogic.getWarehouses();
       
@@ -177,6 +183,8 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
         title: Text(localizations?.warehousesTitle ?? 'Warehouses'),
         automaticallyImplyLeading: false,
         actions: [
+          // Hide Add Warehouse button for warehouse_manager and project_manager
+          if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
             ElevatedButton.icon(
             onPressed: () => _showWarehouseDialog(),
             icon: const Icon(Icons.add, color: Colors.white),
@@ -247,7 +255,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                               leading: const Icon(Icons.warehouse),
                               title: Text(warehouse.name),
                               subtitle: Text(warehouse.location),
-                              trailing: PopupMenuButton(
+                              trailing: (_userRole != 'warehouse_manager' && _userRole != 'project_manager') ? PopupMenuButton(
                                 itemBuilder: (context) => [
                                   PopupMenuItem(
                                     value: 'edit',
@@ -277,7 +285,7 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                                     _deleteWarehouse(warehouse);
                                   }
                                 },
-                              ),
+                              ) : null,
                               onTap: () {
                                 setState(() {
                                   _isOverviewSelected = false;
@@ -308,20 +316,22 @@ class _WarehousesScreenState extends State<WarehousesScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              children: [
-                                Text(
-                                  localizations?.warehouseDetails ?? 'Warehouse Details',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.orange),
-                                  onPressed: () => _showWarehouseDialog(
-                                    warehouse: _warehouses[_selectedWarehouse],
+                                children: [
+                                  Text(
+                                    localizations?.warehouseDetails ?? 'Warehouse Details',
+                                    style: Theme.of(context).textTheme.titleLarge,
                                   ),
-                                ),
-                              ],
-                            ),
+                                  const Spacer(),
+                                  // Hide edit button for warehouse_manager and project_manager
+                                  if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, color: Colors.orange),
+                                      onPressed: () => _showWarehouseDialog(
+                                        warehouse: _warehouses[_selectedWarehouse],
+                                      ),
+                                    ),
+                                ],
+                              ),
                             const SizedBox(height: 16),
                             _buildDetailRow('${localizations?.warehouseCode ?? "Warehouse Code"} :', _warehouses[_selectedWarehouse].code),
                             _buildDetailRow('${localizations?.warehouseName ?? "Warehouse Name"} :', _warehouses[_selectedWarehouse].name),

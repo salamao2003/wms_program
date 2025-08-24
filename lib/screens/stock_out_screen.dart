@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import '../backend/stock_out_logic.dart';
+import '../backend/main_layout_logic.dart';
 import '../theme/app_theme.dart';
 import 'print_stock_out_screen.dart';
 
@@ -19,6 +20,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
   // ===========================
   
   final StockOutLogic _stockOutLogic = StockOutLogic();
+  final MainLayoutLogic _layoutLogic = MainLayoutLogic();
   
   // قائمة البيانات
   List<StockOut> _stockOuts = [];
@@ -28,6 +30,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
   // Loading & Error States
   bool _isLoading = true;
   String? _errorMessage;
+  String? _userRole;
   
   // Search & Filter Controllers
   final TextEditingController _searchController = TextEditingController();
@@ -78,6 +81,9 @@ class _StockOutScreenState extends State<StockOutScreen> {
         _isLoading = true;
         _errorMessage = null;
       });
+
+      // جلب دور المستخدم
+      _userRole = await _layoutLogic.getCurrentUserRole();
 
       // جلب المخازن
       _warehouses = await _stockOutLogic.getWarehouses();
@@ -215,19 +221,21 @@ class _StockOutScreenState extends State<StockOutScreen> {
                   color: isDarkMode ? Colors.white : Colors.black87,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _showAddEditDialog(),
-                icon: const Icon(Icons.add, size: 20, color: Colors.white),
-                label: Text(isRTL ? 'تسجيل صرف' : 'Record Stock Out'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              // Hide Add button for project_manager
+              if (_userRole != 'project_manager')
+                ElevatedButton.icon(
+                  onPressed: () => _showAddEditDialog(),
+                  icon: const Icon(Icons.add, size: 20, color: Colors.white),
+                  label: Text(isRTL ? 'تسجيل صرف' : 'Record Stock Out'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           
@@ -690,22 +698,26 @@ Expanded(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 18),
-                  onPressed: () => _showAddEditDialog(stockOut: stockOut),
-                  tooltip: isRTL ? 'تعديل' : 'Edit',
-                  color: Colors.blue,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, size: 18),
-                  onPressed: () => _confirmDelete(stockOut),
-                  tooltip: isRTL ? 'حذف' : 'Delete',
-                  color: Colors.red,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(),
-                ),
+                // Edit button - hide for warehouse_manager and project_manager
+                if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18),
+                    onPressed: () => _showAddEditDialog(stockOut: stockOut),
+                    tooltip: isRTL ? 'تعديل' : 'Edit',
+                    color: Colors.blue,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                  ),
+                // Delete button - hide for project_manager
+                if (_userRole != 'project_manager')
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 18),
+                    onPressed: () => _confirmDelete(stockOut),
+                    tooltip: isRTL ? 'حذف' : 'Delete',
+                    color: Colors.red,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.print, size: 18),
                   onPressed: () => _printStockOut(stockOut),

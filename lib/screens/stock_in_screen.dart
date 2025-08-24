@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../backend/stock_in_logic.dart';
+import '../backend/main_layout_logic.dart';
 import '../l10n/app_localizations.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
@@ -16,6 +17,7 @@ class StockInScreen extends StatefulWidget {
 
 class _StockInScreenState extends State<StockInScreen> {
   final StockInController _stockInController = StockInController();
+  final MainLayoutLogic _layoutLogic = MainLayoutLogic();
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   List<StockIn> _stockInRecords = [];
@@ -23,6 +25,7 @@ class _StockInScreenState extends State<StockInScreen> {
   
   bool _isLoading = true;
   String? _errorMessage;
+  String? _userRole;
   
   // للفلترة
   String _searchTerm = '';
@@ -43,6 +46,9 @@ class _StockInScreenState extends State<StockInScreen> {
     });
 
     try {
+      // Load user role
+      _userRole = await _layoutLogic.getCurrentUserRole();
+      
       // Load warehouses and initial data
       await _stockInController.loadWarehouses();
       final success = await _stockInController.loadStockInRecords();
@@ -127,15 +133,17 @@ class _StockInScreenState extends State<StockInScreen> {
               ),
             ),
           ],
-          ElevatedButton.icon(
-            onPressed: () => _showStockInDialog(),
-            icon: const Icon(Icons.add),
-            label: Text(localizations?.add ?? 'Add'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
+          // Hide Add button for project_manager
+          if (_userRole != 'project_manager')
+            ElevatedButton.icon(
+              onPressed: () => _showStockInDialog(),
+              icon: const Icon(Icons.add),
+              label: Text(localizations?.add ?? 'Add'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
             ),
-          ),
           const SizedBox(width: 16),
         ],
       ),
@@ -551,18 +559,20 @@ class _StockInScreenState extends State<StockInScreen> {
                   i == 0 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Edit button
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue,),
-                        onPressed: () => _showStockInDialog(stockIn: stockIn),
-                        tooltip: localizations?.edit ?? 'Edit',
-                      ),
-                      // Delete button
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red,),
-                        onPressed: () => _confirmDeleteStockIn(stockIn),
-                        tooltip: localizations?.delete ?? 'Delete',
-                      ),
+                      // Edit button - hide for warehouse_manager and project_manager
+                      if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue,),
+                          onPressed: () => _showStockInDialog(stockIn: stockIn),
+                          tooltip: localizations?.edit ?? 'Edit',
+                        ),
+                      // Delete button - hide for project_manager
+                      if (_userRole != 'project_manager')
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red,),
+                          onPressed: () => _confirmDeleteStockIn(stockIn),
+                          tooltip: localizations?.delete ?? 'Delete',
+                        ),
                       // Download button
                       // في _buildTableRows() - عدّل زر التحميل
  if (stockIn.invoiceFilePath != null)
@@ -652,16 +662,20 @@ class _StockInScreenState extends State<StockInScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-                      onPressed: () => _showStockInDialog(stockIn: stockIn),
-                      tooltip: localizations?.edit ?? 'Edit',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                      onPressed: () => _confirmDeleteStockIn(stockIn),
-                      tooltip: localizations?.delete ?? 'Delete',
-                    ),
+                    // Edit button - hide for warehouse_manager and project_manager
+                    if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                        onPressed: () => _showStockInDialog(stockIn: stockIn),
+                        tooltip: localizations?.edit ?? 'Edit',
+                      ),
+                    // Delete button - hide for project_manager
+                    if (_userRole != 'project_manager')
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                        onPressed: () => _confirmDeleteStockIn(stockIn),
+                        tooltip: localizations?.delete ?? 'Delete',
+                      ),
                    // في _buildTableRows() - عدّل زر التحميل
 if (stockIn.invoiceFilePath != null)
   PopupMenuButton<String>(

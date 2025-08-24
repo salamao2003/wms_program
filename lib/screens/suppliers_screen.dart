@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../backend/suppliers_logic.dart';
+import '../backend/main_layout_logic.dart';
 
 class SuppliersScreen extends StatefulWidget {
   const SuppliersScreen({super.key});
@@ -11,9 +12,11 @@ class SuppliersScreen extends StatefulWidget {
 
 class _SuppliersScreenState extends State<SuppliersScreen> {
   final SupplierLogic _supplierLogic = SupplierLogic();
+  final MainLayoutLogic _layoutLogic = MainLayoutLogic();
   List<Supplier> _suppliers = [];
   bool _isLoading = true;
   String? _errorMessage;
+  String? _userRole;
 
   @override
   void initState() {
@@ -27,6 +30,9 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         _isLoading = true;
         _errorMessage = null;
       });
+      
+      // جلب دور المستخدم
+      _userRole = await _layoutLogic.getCurrentUserRole();
       
       final suppliers = await _supplierLogic.getSuppliers();
       setState(() {
@@ -82,11 +88,13 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         title: Text(localizations?.suppliers ?? 'Suppliers'),
         automaticallyImplyLeading: false,
         actions: [
-          ElevatedButton.icon(
-            onPressed: () => _showSupplierDialog(),
-            icon: const Icon(Icons.add),
-            label: Text(localizations?.add ?? 'Add Supplier'),
-          ),
+          // Hide Add Supplier button for warehouse_manager and project_manager
+          if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+            ElevatedButton.icon(
+              onPressed: () => _showSupplierDialog(),
+              icon: const Icon(Icons.add),
+              label: Text(localizations?.add ?? 'Add Supplier'),
+            ),
           const SizedBox(width: 16),
         ],
       ),
@@ -111,23 +119,29 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 DataColumn(label: Text(localizations?.taxNumber ?? 'Tax Number')),
                 DataColumn(label: Text('Specialization')),
                 DataColumn(label: Text(localizations?.address ?? 'Address')),
-                DataColumn(label: Text(localizations?.actions ?? 'Actions')),
+                // Hide Actions column for warehouse_manager and project_manager
+                if (_userRole != 'warehouse_manager' && _userRole != 'project_manager')
+                  DataColumn(label: Text(localizations?.actions ?? 'Actions')),
               ],
               rows: _suppliers.map((supplier) {
-                return DataRow(
-                  cells: [
-                    DataCell(Text(supplier.name)),
-                    DataCell(Text(supplier.taxNumber)),
-                    DataCell(Text(supplier.specialization)),
-                    DataCell(
-                      SizedBox(
-                        width: 200,
-                        child: Text(
-                          supplier.address,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                final cells = [
+                  DataCell(Text(supplier.name)),
+                  DataCell(Text(supplier.taxNumber)),
+                  DataCell(Text(supplier.specialization)),
+                  DataCell(
+                    SizedBox(
+                      width: 200,
+                      child: Text(
+                        supplier.address,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  ),
+                ];
+                
+                // Add Actions cell only if not warehouse_manager or project_manager
+                if (_userRole != 'warehouse_manager' && _userRole != 'project_manager') {
+                  cells.add(
                     DataCell(
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -143,8 +157,10 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                         ],
                       ),
                     ),
-                  ],
-                );
+                  );
+                }
+                
+                return DataRow(cells: cells);
               }).toList(),
             ),
           ),

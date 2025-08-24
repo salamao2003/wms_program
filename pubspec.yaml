@@ -38,6 +38,7 @@ flutter:
   assets:
     - assets/fonts/Amiri-Regular.ttf
     - assets/images/logo.png
+    - assets/images/logo2.png
     - assets/images/Palestine flag.jpg
     - assets/images/USA flag.jpg
   fonts:

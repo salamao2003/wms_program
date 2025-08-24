@@ -85,20 +85,21 @@ class _MainLayoutState extends State<MainLayout> {
       case 'warehouse_manager':
         return [
           NavigationItem(Icons.home, localizations?.dashboard ?? 'الرئيسية', _buildHomeScreen()),
-          NavigationItem(Icons.input, localizations?.stockIn ?? 'إدخال مخزون', _buildPlaceholderScreen('إدخال مخزون', 'إضافة مخزون جديد')),
-          NavigationItem(Icons.output, localizations?.stockOut ?? 'إخراج مخزون', _buildPlaceholderScreen('إخراج مخزون', 'سحب مخزون')),
-          NavigationItem(Icons.inventory_2, localizations?.inventoryCount ?? 'جرد المخزون', _buildPlaceholderScreen('جرد المخزون', 'عمليات الجرد')),
-          NavigationItem(Icons.history, localizations?.transactions ?? 'المعاملات', _buildPlaceholderScreen('المعاملات', 'عرض المعاملات (قراءة فقط)', isReadOnly: true)),
-          NavigationItem(Icons.assessment, localizations?.reports ?? 'التقارير', _buildPlaceholderScreen('التقارير', 'عرض التقارير (قراءة فقط)', isReadOnly: true)),
-        ];
+          NavigationItem(Icons.warehouse, localizations?.warehouses ?? 'المخازن', WarehousesScreen()),
+          NavigationItem(Icons.input, localizations?.stockIn ?? 'إدخال مخزون', StockInScreen()),
+          NavigationItem(Icons.output, localizations?.stockOut ?? 'إخراج مخزون', StockOutScreen()),
+          NavigationItem(Icons.business, localizations?.suppliers ?? 'الموردين', SuppliersScreen()),
+ 
+                ];
         
       case 'project_manager':
         return [
-          NavigationItem(Icons.home, localizations?.dashboard ?? 'الرئيسية', _buildHomeScreen()),
-          NavigationItem(Icons.history, localizations?.transactions ?? 'المعاملات', _buildPlaceholderScreen('المعاملات', 'عرض المعاملات (قراءة فقط)', isReadOnly: true)),
-          NavigationItem(Icons.assessment, localizations?.reports ?? 'التقارير', _buildPlaceholderScreen('التقارير', 'عرض التقارير (قراءة فقط)', isReadOnly: true)),
-          NavigationItem(Icons.inventory_2, localizations?.inventoryCount ?? 'جرد المخزون', _buildPlaceholderScreen('جرد المخزون', 'عرض نتائج الجرد (قراءة فقط)', isReadOnly: true)),
-        ];
+         NavigationItem(Icons.home, localizations?.dashboard ?? 'الرئيسية', _buildHomeScreen()),
+          NavigationItem(Icons.warehouse, localizations?.warehouses ?? 'المخازن', WarehousesScreen()),
+          NavigationItem(Icons.input, localizations?.stockIn ?? 'إدخال مخزون', StockInScreen()),
+          NavigationItem(Icons.output, localizations?.stockOut ?? 'إخراج مخزون', StockOutScreen()),
+          NavigationItem(Icons.business, localizations?.suppliers ?? 'الموردين', SuppliersScreen()),
+ ];
         
       default:
         return [
@@ -321,8 +322,8 @@ class _MainLayoutState extends State<MainLayout> {
             : ['إدارة كاملة', 'جميع الصلاحيات', 'إدارة المستخدمين', 'التقارير المتقدمة'];
       case 'warehouse_manager':
         return isEnglish
-            ? ['Inventory Management', 'Stock In/Out', 'Inventory Count', 'Stock Reports']
-            : ['إدارة المخزون', 'إدخال وإخراج', 'عمليات الجرد', 'تقارير المخزون'];
+            ? ['Warehouse Management', 'Stock In/Out']
+            : ['إدارة المخزون', 'إدخال وإخراج'];
       case 'project_manager':
         return isEnglish
             ? ['View Reports', 'Transaction Monitoring', 'Inventory Results']
